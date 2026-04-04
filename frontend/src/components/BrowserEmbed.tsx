@@ -29,9 +29,11 @@ export function BrowserEmbed({ liveUrl, phase }: BrowserEmbedProps) {
         {liveUrl ? (
           <iframe
             src={liveUrl}
-            sandbox="allow-same-origin allow-scripts"
+            sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+            allow="autoplay; clipboard-write"
             className="w-full h-full border-0"
             title="Browser view"
+            referrerPolicy="no-referrer"
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
