@@ -1,19 +1,23 @@
 """FastAPI backend for the Rocket Booster system.
 
-The frontend operates on an async polling model:
-  1. POST /api/compare → returns {baseline_session_id, rocket_session_id} immediately
-  2. GET /api/status/{id} → polled every 500ms, returns phase, steps, live_url, duration
-  3. Tasks run in background via asyncio.create_task
+Three flows:
+  LEARN: Agent runs task → extract template → store in Supabase
+  RACE:  Baseline (full agent) vs Rocket (Playwright + agent handoff)
+  RUN:   Single execution (auto/baseline/rocket mode)
+
+Frontend polling model:
+  POST /api/learn or /api/compare → returns session IDs immediately
+  GET /api/status/{id} → polled every 500ms for real-time progress
 """
 
 from __future__ import annotations
 
 import asyncio
+import copy
 import os
 import time
 import uuid
 import logging
-from contextlib import asynccontextmanager
 from typing import Any
 
 from dotenv import load_dotenv
@@ -21,9 +25,12 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from src.models import TemplateStep
+
 load_dotenv()
 
 logger = logging.getLogger(__name__)
+
 
 # ---------------------------------------------------------------------------
 # Session state — what the frontend polls
@@ -52,7 +59,7 @@ class SessionStatus(BaseModel):
 sessions: dict[str, SessionStatus] = {}
 
 
-def _create_session(mode: str) -> str:
+def _create_session() -> str:
     sid = str(uuid.uuid4())
     sessions[sid] = SessionStatus(
         session_id=sid,
@@ -65,7 +72,7 @@ def _create_session(mode: str) -> str:
     return sid
 
 
-def _update_session(sid: str, **kwargs: Any) -> None:
+def _update(sid: str, **kwargs: Any) -> None:
     s = sessions.get(sid)
     if s is None:
         return
@@ -74,178 +81,302 @@ def _update_session(sid: str, **kwargs: Any) -> None:
             setattr(s, k, v)
 
 
-def _add_step(sid: str, description: str, step_type: str, duration_ms: float | None = None) -> None:
+def _step(sid: str, desc: str, stype: str, dur_ms: float | None = None) -> None:
     s = sessions.get(sid)
     if s is None:
         return
     s.steps.append(StepInfo(
         id=f"step_{len(s.steps)}",
-        description=description,
-        type=step_type,
+        description=desc,
+        type=stype,
         timestamp=time.time() * 1000,
-        durationMs=duration_ms,
+        durationMs=dur_ms,
     ))
-    s.current_step = description
+    s.current_step = desc
 
 
 # ---------------------------------------------------------------------------
-# Background task runner
+# Parameter filling — the critical bridge between templates and Playwright
 # ---------------------------------------------------------------------------
 
 
-async def _run_task_background(session_id: str, task: str, mode: str) -> None:
-    """Run a browser task in background, updating session state as it progresses."""
-    start_ms = time.monotonic() * 1000
+def _fill_parameters(
+    steps: list[dict[str, Any]],
+    params: dict[str, str | None],
+    handoff_index: int,
+) -> list[TemplateStep]:
+    """Convert DB step dicts to TemplateStep objects with parameter values filled.
+
+    For parameterized steps (e.g., type="parameterized", param="query"),
+    the extracted parameter value replaces the step's `value` field.
+    Only returns steps up to and including handoff_index (the Playwright portion).
+    """
+    filled: list[TemplateStep] = []
+    for s in steps[: handoff_index + 1]:
+        step = TemplateStep(
+            index=s.get("index", len(filled)),
+            type=s.get("type", "fixed"),
+            action=s.get("action"),
+            url=s.get("url"),
+            selector=s.get("selector"),
+            fallback_selectors=s.get("fallback_selectors", []),
+            param=s.get("param"),
+            value=s.get("value"),
+            key=s.get("key"),
+            direction=s.get("direction"),
+            amount=s.get("amount"),
+            description=s.get("description"),
+            agent_needed=s.get("agent_needed", False),
+            timeout_ms=s.get("timeout_ms", 5000),
+            on_failure=s.get("on_failure", "abort"),
+        )
+        # THE CRITICAL PIECE: fill parameterized values from extracted params
+        if step.param and step.param in params and params[step.param] is not None:
+            step.value = params[step.param]
+        filled.append(step)
+    return filled
+
+
+# ---------------------------------------------------------------------------
+# Shared: create cloud browser
+# ---------------------------------------------------------------------------
+
+
+async def _create_browser(session_id: str):
+    """Create a BaaS cloud browser and return (manager, session, cdp_url)."""
+    from src.browser.cloud import CloudBrowserManager
+
+    api_key = os.environ.get("BROWSER_USE_API_KEY", "")
+    if not api_key:
+        raise RuntimeError("BROWSER_USE_API_KEY not set")
+
+    _step(session_id, "Creating cloud browser...", "agent")
+    mgr = CloudBrowserManager(api_key)
+    browser = await mgr.create()
+    _update(session_id, live_url=browser.live_url)
+    _step(session_id, "Browser ready", "agent", 500)
+    return mgr, browser, browser.cdp_url
+
+
+# ---------------------------------------------------------------------------
+# Shared: run browser-use agent
+# ---------------------------------------------------------------------------
+
+
+async def _run_agent(session_id: str, task: str, cdp_url: str, rocket_steps_done: int = 0):
+    """Run the browser-use agent on the cloud browser. Returns history object."""
+    from browser_use import Agent, BrowserSession as BUSession
 
     try:
-        _update_session(session_id, status="running", phase="agent" if mode == "baseline" else "rocket")
+        from browser_use import ChatAnthropic as BUChat
+        llm = BUChat(model="claude-sonnet-4-6", temperature=0, max_tokens=8096)
+    except ImportError:
+        from langchain_anthropic import ChatAnthropic
+        llm = ChatAnthropic(model="claude-sonnet-4-6", temperature=0, max_tokens=8096)
 
-        # Import the pieces we need
-        from src.browser.cloud import CloudBrowserManager
+    bu_session = BUSession(cdp_url=cdp_url, keep_alive=True)
 
-        api_key = os.environ.get("BROWSER_USE_API_KEY", "")
-        if not api_key:
-            raise RuntimeError("BROWSER_USE_API_KEY not set")
-
-        # Step 1: Create cloud browser
-        _add_step(session_id, "Creating cloud browser...", "agent")
-        browser_mgr = CloudBrowserManager(api_key)
-        browser_session = await browser_mgr.create()
-        _update_session(session_id, live_url=browser_session.live_url)
-        _add_step(session_id, "Browser ready", "agent", 1000)
-
-        cdp_url = browser_session.cdp_url
-
-        # Step 2: If rocket mode, check for template and run Playwright
-        rocket_steps_done = 0
-        if mode in ("rocket", "auto"):
-            try:
-                from src.matching.matcher import find_matching_template
-                _add_step(session_id, "Searching for matching template...", "playwright")
-                match = await find_matching_template(task)
-
-                if match and match.similarity >= 0.75:
-                    _update_session(session_id, phase="rocket")
-                    _add_step(session_id, f"Template found! ({match.similarity:.0%} match)", "playwright")
-
-                    # Run Playwright rocket
-                    from src.browser.rocket import PlaywrightRocket
-                    from src.models import TemplateStep
-
-                    rocket = PlaywrightRocket(cdp_url=cdp_url)
-                    steps = [TemplateStep(**s) if isinstance(s, dict) else s for s in match.steps]
-                    playwright_steps = [s for s in steps[:match.handoff_index + 1]]
-
-                    for i, step in enumerate(playwright_steps):
-                        desc = step.get("description", step.get("action", f"Step {i}")) if isinstance(step, dict) else (step.description or step.action or f"Step {i}")
-                        step_start = time.monotonic()
-                        try:
-                            await rocket.execute_step(step)
-                            dur = (time.monotonic() - step_start) * 1000
-                            _add_step(session_id, desc, "playwright", dur)
-                            rocket_steps_done += 1
-                        except Exception as e:
-                            _add_step(session_id, f"Rocket aborted: {e}", "playwright")
-                            break
-
-                    # Disconnect Playwright
-                    await rocket.disconnect()
-                    _add_step(session_id, "Playwright disconnected, handing off to agent", "playwright")
-                else:
-                    _add_step(session_id, "No template match, using full agent", "agent")
-            except ImportError:
-                _add_step(session_id, "Matching module not available, using full agent", "agent")
-            except Exception as e:
-                _add_step(session_id, f"Template lookup failed: {e}", "agent")
-
-        # Step 3: Run browser-use agent
-        _update_session(session_id, phase="agent")
-        _add_step(session_id, "Starting browser-use agent...", "agent")
-
-        from browser_use import Agent, BrowserSession as BUSession
-
-        bu_session = BUSession(cdp_url=cdp_url, keep_alive=True)
-
-        # Use browser-use's own ChatAnthropic wrapper (has .provider attribute)
-        try:
-            from browser_use import ChatAnthropic as BUChatAnthropic
-            llm = BUChatAnthropic(
-                model="claude-sonnet-4-6",
-                temperature=0,
-                max_tokens=8096,
-            )
-        except ImportError:
-            from langchain_anthropic import ChatAnthropic
-            llm = ChatAnthropic(
-                model="claude-sonnet-4-6",
-                temperature=0,
-                max_tokens=8096,
-            )
-
-        agent_task = task
-        if rocket_steps_done > 0:
-            agent_task = (
-                f"Continue this task: {task}\n\n"
-                f"The browser has already completed {rocket_steps_done} steps via automation. "
-                f"The page is currently showing the result of those actions. "
-                f"Pick up from the current state and complete the remaining work."
-            )
-
-        agent = Agent(
-            task=agent_task,
-            llm=llm,
-            browser_session=bu_session,
-            max_failures=5,
-            max_actions_per_step=5,
+    agent_task = task
+    if rocket_steps_done > 0:
+        agent_task = (
+            f"Continue this task: {task}\n\n"
+            f"The browser has already completed {rocket_steps_done} steps via Playwright automation. "
+            f"The page shows the result of those actions. "
+            f"Pick up from the current state and complete the remaining work."
         )
 
-        _add_step(session_id, "Agent thinking...", "agent")
-        history = await agent.run()
+    _step(session_id, "Agent starting...", "agent")
+    agent = Agent(
+        task=agent_task,
+        llm=llm,
+        browser_session=bu_session,
+        max_failures=5,
+        max_actions_per_step=5,
+    )
+    history = await agent.run()
 
-        # Log agent steps
-        for action_name in history.action_names():
-            _add_step(session_id, f"Agent: {action_name}", "agent")
+    # Log agent actions as steps
+    for name in history.action_names():
+        _step(session_id, f"Agent: {name}", "agent")
 
-        # Cleanup
-        try:
-            await browser_mgr.stop(browser_session.browser_id)
-        except Exception:
-            pass
+    return history
+
+
+# ---------------------------------------------------------------------------
+# LEARN flow: agent runs → extract template → store in Supabase
+# ---------------------------------------------------------------------------
+
+
+async def _run_learn(session_id: str, task: str) -> None:
+    """Full learn flow: run agent, extract template, store in DB."""
+    start_ms = time.monotonic() * 1000
+    mgr = browser = None
+
+    try:
+        _update(session_id, status="running", phase="agent")
+        mgr, browser, cdp_url = await _create_browser(session_id)
+
+        # Run agent (full, no rocket)
+        history = await _run_agent(session_id, task, cdp_url)
+
+        # Extract template
+        _update(session_id, phase="learning")
+        _step(session_id, "Extracting template from agent trace...", "agent")
+
+        from src.template.extractor import extract_template_from_trace
+        from src.template.generator import template_to_db_format
+        from src.db.templates import create_template
+
+        template = await extract_template_from_trace(history, task)
+
+        fixed_count = len([s for s in template.steps if s.classification != "DYNAMIC"])
+        total_count = len(template.steps)
+        _step(
+            session_id,
+            f"Learned {total_count} steps: {fixed_count} replayable by Playwright, "
+            f"handoff at step {template.handoff_index}",
+            "agent",
+        )
+
+        # Store in Supabase
+        _step(session_id, "Storing template in Supabase...", "agent")
+        db_dict = template_to_db_format(template)
+        template_id = await create_template(**db_dict)
+        _step(session_id, f"Template saved! ID: {template_id[:8]}...", "agent")
 
         elapsed = time.monotonic() * 1000 - start_ms
-        _update_session(
-            session_id,
-            status="complete",
-            phase="complete",
-            duration_ms=elapsed,
-            current_step="Done",
-        )
-
-        # If learning mode, extract template
-        if mode == "learn":
-            _update_session(session_id, phase="learning")
-            try:
-                from src.template.extractor import extract_template_from_trace
-                from src.template.generator import template_to_db_format
-                _add_step(session_id, "Extracting template from trace...", "agent")
-                template = await extract_template_from_trace(history, task)
-                _add_step(session_id, "Template extracted!", "agent")
-                _update_session(session_id, phase="complete")
-            except Exception as e:
-                _add_step(session_id, f"Template extraction failed: {e}", "agent")
-                _update_session(session_id, phase="complete")
+        _update(session_id, status="complete", phase="complete", duration_ms=elapsed, current_step="Done! Template ready for racing.")
 
     except Exception as e:
         elapsed = time.monotonic() * 1000 - start_ms
-        logger.exception("Task failed: %s", e)
-        _update_session(
-            session_id,
-            status="error",
-            phase="error",
-            duration_ms=elapsed,
-            error=str(e),
-            current_step=f"Error: {e}",
-        )
+        logger.exception("Learn failed: %s", e)
+        _update(session_id, status="error", phase="error", duration_ms=elapsed, error=str(e), current_step=f"Error: {e}")
+
+    finally:
+        if mgr and browser:
+            try:
+                await mgr.stop(browser.browser_id)
+            except Exception:
+                pass
+
+
+# ---------------------------------------------------------------------------
+# BASELINE flow: full agent, no template, no rocket
+# ---------------------------------------------------------------------------
+
+
+async def _run_baseline(session_id: str, task: str) -> None:
+    """Run task with full agent only (for comparison)."""
+    start_ms = time.monotonic() * 1000
+    mgr = browser = None
+
+    try:
+        _update(session_id, status="running", phase="agent")
+        mgr, browser, cdp_url = await _create_browser(session_id)
+        await _run_agent(session_id, task, cdp_url)
+
+        elapsed = time.monotonic() * 1000 - start_ms
+        _update(session_id, status="complete", phase="complete", duration_ms=elapsed, current_step="Done")
+
+    except Exception as e:
+        elapsed = time.monotonic() * 1000 - start_ms
+        logger.exception("Baseline failed: %s", e)
+        _update(session_id, status="error", phase="error", duration_ms=elapsed, error=str(e), current_step=f"Error: {e}")
+
+    finally:
+        if mgr and browser:
+            try:
+                await mgr.stop(browser.browser_id)
+            except Exception:
+                pass
+
+
+# ---------------------------------------------------------------------------
+# ROCKET flow: template match → Playwright → agent handoff
+# ---------------------------------------------------------------------------
+
+
+async def _run_rocket(session_id: str, task: str) -> None:
+    """Run task using rocket booster: Playwright for known steps, agent for the rest."""
+    start_ms = time.monotonic() * 1000
+    mgr = browser = None
+
+    try:
+        _update(session_id, status="running", phase="rocket")
+
+        # Step 1: Find matching template
+        _step(session_id, "Searching for matching template...", "playwright")
+
+        from src.matching.matcher import find_matching_template
+        match = await find_matching_template(task)
+
+        if match is None or match.similarity < 0.75:
+            _step(session_id, "No matching template found. Learn this task first!", "agent")
+            elapsed = time.monotonic() * 1000 - start_ms
+            _update(session_id, status="error", phase="error", duration_ms=elapsed, error="No matching template. Run Learn first.")
+            return
+
+        _step(session_id, f"Template matched! {match.similarity:.0%} similarity to '{match.task_pattern}'", "playwright")
+
+        # Step 2: Extract parameters
+        _step(session_id, "Extracting parameters from task...", "playwright")
+
+        from src.template.extractor import extract_parameters
+        params = await extract_parameters(task, {
+            "task_pattern": match.task_pattern,
+            "parameters": match.parameters,
+        })
+        param_summary = ", ".join(f"{k}={v}" for k, v in params.items() if v)
+        _step(session_id, f"Parameters: {param_summary}", "playwright")
+
+        # Step 3: Fill parameters into template steps
+        filled_steps = _fill_parameters(match.steps, params, match.handoff_index)
+        _step(session_id, f"Prepared {len(filled_steps)} Playwright steps", "playwright")
+
+        # Step 4: Create browser
+        mgr, browser, cdp_url = await _create_browser(session_id)
+
+        # Step 5: ROCKET — Playwright executes known steps
+        _step(session_id, "Launching Playwright rocket...", "playwright")
+
+        from src.browser.rocket import PlaywrightRocket
+        rocket = PlaywrightRocket()
+        rocket_result = await rocket.execute(cdp_url, filled_steps)
+
+        # Log individual step timings
+        for i, timing in enumerate(rocket_result.step_timings):
+            if i < len(filled_steps):
+                desc = filled_steps[i].description or filled_steps[i].action or f"Step {i}"
+                _step(session_id, desc, "playwright", timing * 1000)
+
+        if rocket_result.aborted:
+            _step(session_id, f"Rocket aborted at step {rocket_result.steps_completed}: {rocket_result.abort_reason}", "playwright")
+        else:
+            _step(
+                session_id,
+                f"Rocket complete! {rocket_result.steps_completed} steps in {rocket_result.duration_seconds:.1f}s",
+                "playwright",
+            )
+
+        # Step 6: Agent handoff for remaining dynamic steps
+        _update(session_id, phase="agent")
+        _step(session_id, "Handing off to agent for dynamic steps...", "agent")
+        await _run_agent(session_id, task, cdp_url, rocket_result.steps_completed)
+
+        elapsed = time.monotonic() * 1000 - start_ms
+        _update(session_id, status="complete", phase="complete", duration_ms=elapsed, current_step="Done")
+
+    except Exception as e:
+        elapsed = time.monotonic() * 1000 - start_ms
+        logger.exception("Rocket failed: %s", e)
+        _update(session_id, status="error", phase="error", duration_ms=elapsed, error=str(e), current_step=f"Error: {e}")
+
+    finally:
+        if mgr and browser:
+            try:
+                await mgr.stop(browser.browser_id)
+            except Exception:
+                pass
 
 
 # ---------------------------------------------------------------------------
@@ -264,11 +395,6 @@ app.add_middleware(
 )
 
 
-# ---------------------------------------------------------------------------
-# Request models
-# ---------------------------------------------------------------------------
-
-
 class TaskRequest(BaseModel):
     task: str = Field(..., min_length=3, max_length=2000)
 
@@ -278,48 +404,43 @@ class TaskRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+@app.post("/api/learn")
+async def learn(request: TaskRequest) -> dict:
+    """Learn a task: run agent, extract template, store for future rockets."""
+    sid = _create_session()
+    asyncio.create_task(_run_learn(sid, request.task))
+    return {"session_id": sid}
+
+
 @app.post("/api/compare")
 async def compare(request: TaskRequest) -> dict:
-    """Start baseline + rocket runs in parallel, return session IDs immediately."""
-    baseline_id = _create_session("baseline")
-    rocket_id = _create_session("rocket")
-
-    asyncio.create_task(_run_task_background(baseline_id, request.task, "baseline"))
-    asyncio.create_task(_run_task_background(rocket_id, request.task, "auto"))
-
-    return {
-        "baseline_session_id": baseline_id,
-        "rocket_session_id": rocket_id,
-    }
+    """Start baseline + rocket runs in parallel. Returns session IDs immediately."""
+    baseline_id = _create_session()
+    rocket_id = _create_session()
+    asyncio.create_task(_run_baseline(baseline_id, request.task))
+    asyncio.create_task(_run_rocket(rocket_id, request.task))
+    return {"baseline_session_id": baseline_id, "rocket_session_id": rocket_id}
 
 
 @app.post("/api/run-baseline")
-async def run_baseline(request: TaskRequest) -> dict:
-    """Start a baseline run, return session ID immediately."""
-    sid = _create_session("baseline")
-    asyncio.create_task(_run_task_background(sid, request.task, "baseline"))
+async def run_baseline_endpoint(request: TaskRequest) -> dict:
+    """Start a baseline run (full agent, no template)."""
+    sid = _create_session()
+    asyncio.create_task(_run_baseline(sid, request.task))
     return {"session_id": sid}
 
 
 @app.post("/api/run-rocket")
-async def run_rocket(request: TaskRequest) -> dict:
-    """Start a rocket run, return session ID immediately."""
-    sid = _create_session("rocket")
-    asyncio.create_task(_run_task_background(sid, request.task, "rocket"))
-    return {"session_id": sid}
-
-
-@app.post("/api/learn")
-async def learn(request: TaskRequest) -> dict:
-    """Start a learning run (baseline + extract template), return session ID."""
-    sid = _create_session("learn")
-    asyncio.create_task(_run_task_background(sid, request.task, "learn"))
+async def run_rocket_endpoint(request: TaskRequest) -> dict:
+    """Start a rocket run (Playwright + agent). Requires a matching template."""
+    sid = _create_session()
+    asyncio.create_task(_run_rocket(sid, request.task))
     return {"session_id": sid}
 
 
 @app.get("/api/status/{session_id}")
 async def get_status(session_id: str) -> SessionStatus:
-    """Poll for real-time session status. Frontend calls this every 500ms."""
+    """Poll for real-time session status. Frontend calls every 500ms."""
     s = sessions.get(session_id)
     if s is None:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -366,7 +487,6 @@ async def list_templates() -> list[dict]:
 
 @app.delete("/api/templates/{template_id}")
 async def delete_template(template_id: str) -> dict:
-    """Delete a stored template."""
     try:
         from supabase import create_client
         client = create_client(
@@ -381,8 +501,5 @@ async def delete_template(template_id: str) -> dict:
 
 @app.get("/api/health")
 async def health() -> dict:
-    return {
-        "status": "ok",
-        "version": "0.1.0",
-        "sessions_active": len([s for s in sessions.values() if s.status == "running"]),
-    }
+    active = len([s for s in sessions.values() if s.status == "running"])
+    return {"status": "ok", "version": "0.1.0", "sessions_active": active}

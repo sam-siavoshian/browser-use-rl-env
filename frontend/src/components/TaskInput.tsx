@@ -2,12 +2,13 @@ import { useState } from 'react';
 
 interface TaskInputProps {
   onRun: (task: string) => void;
+  onLearn?: (task: string) => void;
   isRunning: boolean;
   onStop?: () => void;
   compact?: boolean;
 }
 
-export function TaskInput({ onRun, isRunning, onStop, compact }: TaskInputProps) {
+export function TaskInput({ onRun, onLearn, isRunning, onStop, compact }: TaskInputProps) {
   const [task, setTask] = useState('Search for "best coffee shops in SF" on Google');
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -15,6 +16,11 @@ export function TaskInput({ onRun, isRunning, onStop, compact }: TaskInputProps)
     if (isRunning) { onStop?.(); return; }
     if (!task.trim()) return;
     onRun(task.trim());
+  };
+
+  const handleLearn = () => {
+    if (!task.trim() || isRunning) return;
+    onLearn?.(task.trim());
   };
 
   if (compact) {
@@ -42,9 +48,8 @@ export function TaskInput({ onRun, isRunning, onStop, compact }: TaskInputProps)
   }
 
   return (
-    <form onSubmit={handleSubmit} className="w-full max-w-[480px]">
+    <form onSubmit={handleSubmit} className="w-full max-w-[520px]">
       <div className="relative group">
-        {/* Subtle glow behind input on hover */}
         <div className="absolute -inset-px rounded-2xl bg-gradient-to-b from-lime/[0.05] to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
         <input
           type="text"
@@ -52,15 +57,27 @@ export function TaskInput({ onRun, isRunning, onStop, compact }: TaskInputProps)
           onChange={(e) => setTask(e.target.value)}
           placeholder="What should the browser agent do?"
           disabled={isRunning}
-          className="relative w-full h-[52px] pl-5 pr-[140px] bg-surface border border-border rounded-2xl text-[14px] text-text placeholder-text-muted focus:outline-none focus:border-lime/25 transition-all disabled:opacity-30"
+          className="relative w-full h-[52px] pl-5 pr-[240px] bg-surface border border-border rounded-2xl text-[14px] text-text placeholder-text-muted focus:outline-none focus:border-lime/25 transition-all disabled:opacity-30"
         />
-        <button
-          type="submit"
-          disabled={!task.trim() && !isRunning}
-          className="absolute right-1.5 top-1/2 -translate-y-1/2 h-10 px-5 rounded-xl font-medium text-[13px] tracking-wide transition-all bg-lime text-bg hover:brightness-110 active:scale-[0.97] disabled:opacity-30 disabled:cursor-not-allowed"
-        >
-          Launch race
-        </button>
+        <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+          {onLearn && (
+            <button
+              type="button"
+              onClick={handleLearn}
+              disabled={!task.trim() || isRunning}
+              className="h-10 px-4 rounded-xl font-medium text-[13px] bg-surface border border-border text-text-dim hover:border-amber-400/30 hover:text-amber-400 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              Learn
+            </button>
+          )}
+          <button
+            type="submit"
+            disabled={!task.trim() && !isRunning}
+            className="h-10 px-5 rounded-xl font-medium text-[13px] tracking-wide transition-all bg-lime text-bg hover:brightness-110 active:scale-[0.97] disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            Race
+          </button>
+        </div>
       </div>
     </form>
   );
