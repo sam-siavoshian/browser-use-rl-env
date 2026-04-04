@@ -6,18 +6,15 @@ interface TimerProps {
 
 export function Timer({ elapsedMs, isComplete, variant }: TimerProps) {
   const seconds = elapsedMs / 1000;
-  const formatted = seconds < 100 ? seconds.toFixed(1) : Math.round(seconds).toString();
+  const formatted = seconds.toFixed(1);
 
   const color = isComplete
-    ? variant === 'rocket'
-      ? 'text-accent'
-      : 'text-text-secondary'
+    ? variant === 'rocket' ? 'text-lime' : 'text-text-muted'
     : 'text-text';
 
   return (
-    <div className={`font-mono tabular-nums font-bold ${color} transition-colors duration-300`}>
-      <span className="text-3xl">{formatted}</span>
-      <span className="text-lg text-text-muted ml-0.5">s</span>
-    </div>
+    <span className={`font-mono tabular-nums font-medium text-xl ${color} transition-colors duration-500`}>
+      {formatted}<span className="text-[11px] text-text-muted ml-0.5">s</span>
+    </span>
   );
 }

@@ -12,281 +12,238 @@ import { useTimer } from './hooks/useTimer';
 import { startCompare, getTemplates } from './api';
 import type { Template, Phase } from './types';
 
-type AppState = 'idle' | 'racing' | 'results';
+type View = 'idle' | 'racing' | 'results';
 
 function App() {
-  const [appState, setAppState] = useState<AppState>('idle');
+  const [view, setView] = useState<View>('idle');
   const [currentTask, setCurrentTask] = useState('');
 
-  // Sessions
-  const [baselineSessionId, setBaselineSessionId] = useState<string | null>(null);
-  const [rocketSessionId, setRocketSessionId] = useState<string | null>(null);
+  const [baselineId, setBaselineId] = useState<string | null>(null);
+  const [rocketId, setRocketId] = useState<string | null>(null);
 
-  // Templates
   const [templates, setTemplates] = useState<Template[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
 
-  // Pollers
-  const { status: baselineStatus } = usePoller(baselineSessionId);
-  const { status: rocketStatus } = usePoller(rocketSessionId);
+  const { status: baseStatus } = usePoller(baselineId);
+  const { status: rocketStatus } = usePoller(rocketId);
 
-  // Timers
-  const baselineTimer = useTimer();
+  const baseTimer = useTimer();
   const rocketTimer = useTimer();
 
-  // Load templates
-  useEffect(() => {
-    getTemplates().then(setTemplates).catch(() => {});
-  }, []);
-
-  // Stop timers when complete
-  useEffect(() => {
-    if (baselineStatus?.status === 'complete' || baselineStatus?.status === 'error') {
-      baselineTimer.stop();
-    }
-  }, [baselineStatus?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { getTemplates().then(setTemplates).catch(() => {}); }, []);
 
   useEffect(() => {
-    if (rocketStatus?.status === 'complete' || rocketStatus?.status === 'error') {
-      rocketTimer.stop();
-    }
+    if (baseStatus?.status === 'complete' || baseStatus?.status === 'error') baseTimer.stop();
+  }, [baseStatus?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (rocketStatus?.status === 'complete' || rocketStatus?.status === 'error') rocketTimer.stop();
   }, [rocketStatus?.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Both done → show results
   useEffect(() => {
-    if (baselineStatus?.status === 'complete' && rocketStatus?.status === 'complete') {
-      setTimeout(() => setAppState('results'), 800);
+    if (baseStatus?.status === 'complete' && rocketStatus?.status === 'complete') {
+      setTimeout(() => setView('results'), 600);
     }
-  }, [baselineStatus?.status, rocketStatus?.status]);
+  }, [baseStatus?.status, rocketStatus?.status]);
 
-  const handleRun = useCallback(async (task: string) => {
+  const launch = useCallback(async (task: string) => {
     setCurrentTask(task);
-    setBaselineSessionId(null);
-    setRocketSessionId(null);
+    setBaselineId(null);
+    setRocketId(null);
     setSelectedTemplate(null);
-    baselineTimer.reset();
+    baseTimer.reset();
     rocketTimer.reset();
-    setAppState('racing');
+    setView('racing');
 
     try {
       const { baseline_session_id, rocket_session_id } = await startCompare(task);
-      setBaselineSessionId(baseline_session_id);
-      setRocketSessionId(rocket_session_id);
-      baselineTimer.start();
+      setBaselineId(baseline_session_id);
+      setRocketId(rocket_session_id);
+      baseTimer.start();
       rocketTimer.start();
-    } catch (err) {
-      console.error('Failed to start race:', err);
-      setAppState('idle');
+    } catch {
+      setView('idle');
     }
-  }, [baselineTimer, rocketTimer]);
+  }, [baseTimer, rocketTimer]);
 
-  const handleReset = useCallback(() => {
-    setBaselineSessionId(null);
-    setRocketSessionId(null);
-    baselineTimer.reset();
+  const reset = useCallback(() => {
+    setBaselineId(null);
+    setRocketId(null);
+    baseTimer.reset();
     rocketTimer.reset();
-    setAppState('idle');
-  }, [baselineTimer, rocketTimer]);
+    setView('idle');
+  }, [baseTimer, rocketTimer]);
 
-  const baselinePhase: Phase = baselineStatus?.phase ?? 'idle';
-  const rocketPhase: Phase = rocketStatus?.phase ?? 'idle';
-  const isRunning = appState === 'racing';
+  const basePh: Phase = baseStatus?.phase ?? 'idle';
+  const rocketPh: Phase = rocketStatus?.phase ?? 'idle';
+  const isRunning = view === 'racing';
 
-  // Live speedup
   const liveSpeedup =
-    baselineTimer.elapsedMs > 1000 && rocketTimer.elapsedMs > 100
-      ? baselineTimer.elapsedMs / rocketTimer.elapsedMs
+    baseTimer.elapsedMs > 2000 && rocketTimer.elapsedMs > 200
+      ? baseTimer.elapsedMs / rocketTimer.elapsedMs
       : null;
 
   return (
-    <div className="h-screen flex flex-col relative overflow-hidden">
-      {/* ── Subtle background gradient ── */}
+    <div className="h-screen flex flex-col overflow-hidden relative" style={{ background: '#0a0a0a' }}>
+
+      {/* Ambient top light */}
       <div className="fixed inset-0 pointer-events-none z-0">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-accent/[0.02] rounded-full blur-[120px]" />
+        <div
+          className="absolute top-[-300px] left-1/2 -translate-x-1/2 w-[700px] h-[700px] rounded-full"
+          style={{ background: 'radial-gradient(circle, rgba(200,255,0,0.025) 0%, transparent 65%)' }}
+        />
       </div>
 
-      {/* ── Header ── */}
-      <header className="relative z-10 flex items-center justify-between px-6 h-16 border-b border-border-subtle">
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-accent/10 flex items-center justify-center text-sm">
-            ⚡
-          </div>
-          <span className="text-[15px] font-semibold tracking-tight">Rocket Booster</span>
-        </div>
+      {/* ━━━━━━━━━━━━━━━━━━ IDLE ━━━━━━━━━━━━━━━━━━ */}
+      {view === 'idle' && (
+        <div className="flex-1 flex flex-col relative z-10">
+          {/* Top bar */}
+          <header className="flex items-center justify-between px-8 h-12 border-b border-border-subtle">
+            <div className="flex items-center gap-2">
+              <div className="w-[6px] h-[6px] rounded-full bg-lime" />
+              <span className="text-[13px] font-medium text-text-dim tracking-tight">Rocket Booster</span>
+            </div>
+            <span className="text-[11px] font-mono text-text-muted tracking-wide">DIMOND HACKS '26</span>
+          </header>
 
-        <div className="flex-1 flex justify-center">
-          <TaskInput
-            onRun={handleRun}
-            isRunning={isRunning}
-            onStop={handleReset}
-          />
-        </div>
+          {/* Hero */}
+          <div className="flex-1 flex flex-col items-center justify-center px-6 pb-8">
 
-        {/* Live indicator */}
-        <div className="w-32 flex justify-end">
-          {isRunning && (
-            <span className="flex items-center gap-1.5 text-xs font-mono text-accent animate-fade-in">
-              <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
-              Live
-            </span>
-          )}
-        </div>
-      </header>
-
-      {/* ── Main content ── */}
-      <main className="flex-1 relative z-10 flex flex-col overflow-hidden">
-
-        {/* Idle state — hero */}
-        {appState === 'idle' && (
-          <div className="flex-1 flex flex-col items-center justify-center px-6 animate-fade-in">
-            <div className="text-center mb-12">
-              <h2 className="text-4xl font-bold tracking-tight mb-3">
-                Make browser agents <span className="gradient-text">5x faster</span>
-              </h2>
-              <p className="text-text-secondary text-lg max-w-md mx-auto leading-relaxed">
-                Learn from past runs. Replay known steps with Playwright.
-                Let the agent handle the rest.
+            <div className="text-center mb-8">
+              <h1
+                className="font-serif text-[76px] leading-[1.1] tracking-[-0.01em] text-text italic anim-fade-up"
+              >
+                 Make browser-use<br />agents fly.
+              </h1>
+              <p
+                className="text-[15px] text-text-dim mt-4 max-w-[380px] mx-auto leading-[1.6] anim-fade-up"
+                style={{ animationDelay: '80ms' }}
+              >
+                Learn browsing patterns. Replay known steps with
+                Playwright at machine speed. Agent handles the rest.
               </p>
             </div>
 
-            {/* How it works */}
-            <div className="flex items-center gap-8 mb-12">
+            {/* Input */}
+            <div className="w-full flex justify-center anim-fade-up" style={{ animationDelay: '150ms' }}>
+              <TaskInput onRun={launch} isRunning={false} />
+            </div>
+
+            {/* Three pillars in cards */}
+            <div
+              className="grid grid-cols-3 gap-3 mt-10 w-full max-w-[520px] anim-fade-up"
+              style={{ animationDelay: '220ms' }}
+            >
               {[
-                { step: '1', label: 'Run a task', desc: 'The agent completes it normally' },
-                { step: '2', label: 'Learn the pattern', desc: 'We extract reusable steps' },
-                { step: '3', label: 'Race it', desc: 'Watch Playwright blast through' },
-              ].map((item, i) => (
+                { n: '01', title: 'Record', body: 'Agent completes the task normally. 40 seconds of clicking around.' },
+                { n: '02', title: 'Learn', body: 'Booster extracts the playbook and turns it into a Playwright script.' },
+                { n: '03', title: 'Fly', body: 'Playwright replays in 2 seconds flat. Agent finishes the last mile.' },
+              ].map((item) => (
                 <div
-                  key={item.step}
-                  className="flex items-start gap-3 animate-fade-up"
-                  style={{ animationDelay: `${i * 100}ms` }}
+                  key={item.n}
+                  className="rounded-xl border border-border bg-surface p-4 text-left"
                 >
-                  <span className="w-6 h-6 rounded-full bg-surface border border-border flex items-center justify-center text-[11px] font-mono text-text-muted flex-shrink-0 mt-0.5">
-                    {item.step}
-                  </span>
-                  <div>
-                    <div className="text-sm font-medium text-text">{item.label}</div>
-                    <div className="text-xs text-text-muted mt-0.5">{item.desc}</div>
-                  </div>
+                  <span className="text-[10px] font-mono text-text-muted">{item.n}</span>
+                  <h3 className="text-[13px] font-semibold text-text mt-1.5 mb-1">{item.title}</h3>
+                  <p className="text-[11px] text-text-muted leading-[1.5]">{item.body}</p>
                 </div>
               ))}
             </div>
 
-            {/* Templates as pills */}
+            {/* Template pills */}
             {templates.length > 0 && (
-              <div className="animate-fade-up" style={{ animationDelay: '300ms' }}>
-                <div className="text-[10px] uppercase tracking-[0.2em] text-text-muted mb-3 text-center">
-                  Learned templates
-                </div>
-                <LearningHistory
-                  templates={templates}
-                  onSelect={setSelectedTemplate}
-                  selectedId={selectedTemplate?.id}
-                />
+              <div className="mt-8 anim-fade-up" style={{ animationDelay: '300ms' }}>
+                <LearningHistory templates={templates} onSelect={setSelectedTemplate} selectedId={selectedTemplate?.id} />
               </div>
             )}
 
-            {/* Template detail */}
             {selectedTemplate && (
-              <div className="mt-6 w-full max-w-lg">
-                <TemplateVisualizer
-                  steps={selectedTemplate.steps}
-                  pattern={selectedTemplate.pattern}
-                  confidence={selectedTemplate.confidence}
-                />
+              <div className="mt-5 w-full max-w-[440px]">
+                <TemplateVisualizer steps={selectedTemplate.steps} pattern={selectedTemplate.pattern} confidence={selectedTemplate.confidence} />
               </div>
             )}
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Racing state — split view */}
-        {appState === 'racing' && (
-          <div className="flex-1 flex overflow-hidden animate-fade-in">
+      {/* ━━━━━━━━━━━━━━━━━━ RACING ━━━━━━━━━━━━━━━━━━ */}
+      {view === 'racing' && (
+        <div className="flex-1 flex flex-col relative z-10 anim-fade-in">
 
-            {/* Left: Baseline */}
-            <div className="flex-1 flex flex-col p-5 overflow-hidden">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-semibold text-text-secondary">Baseline</span>
-                  <PhaseIndicator phase={baselinePhase} />
+          {/* Compact header */}
+          <header className="flex items-center gap-4 px-5 h-11 border-b border-border-subtle">
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="w-[6px] h-[6px] rounded-full bg-lime" />
+              <span className="text-[13px] font-medium text-text-dim">Rocket Booster</span>
+            </div>
+            <div className="flex-1">
+              <TaskInput onRun={launch} isRunning={isRunning} onStop={reset} compact />
+            </div>
+            <span className="flex items-center gap-1.5 text-[11px] font-mono text-lime flex-shrink-0">
+              <span className="w-[5px] h-[5px] rounded-full bg-lime dot-pulse" />
+              Live
+            </span>
+          </header>
+
+          {/* Split race */}
+          <div className="flex-1 grid grid-cols-[1fr_1px_1fr] overflow-hidden">
+
+            {/* Left — Baseline */}
+            <div className="flex flex-col p-4 overflow-hidden">
+              <div className="flex items-center justify-between mb-2.5">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-[13px] font-medium text-text-dim">Without Booster</span>
+                  <PhaseIndicator phase={basePh} />
                 </div>
-                <Timer
-                  elapsedMs={baselineTimer.elapsedMs}
-                  isComplete={baselineStatus?.status === 'complete'}
-                  variant="baseline"
-                />
+                <Timer elapsedMs={baseTimer.elapsedMs} isComplete={baseStatus?.status === 'complete'} variant="baseline" />
               </div>
-
-              <BrowserEmbed liveUrl={baselineStatus?.live_url ?? null} phase={baselinePhase} />
-
-              <div className="mt-3 flex-1 overflow-y-auto">
-                <StepTracker
-                  steps={baselineStatus?.steps ?? []}
-                  phase={baselinePhase}
-                  currentStep={baselineStatus?.current_step ?? ''}
-                />
+              <BrowserEmbed liveUrl={baseStatus?.live_url ?? null} phase={basePh} />
+              <div className="mt-2.5 flex-1 overflow-y-auto">
+                <StepTracker steps={baseStatus?.steps ?? []} phase={basePh} currentStep={baseStatus?.current_step ?? ''} />
               </div>
             </div>
 
-            {/* Center divider with live speedup */}
-            <div className="w-px bg-border-subtle relative flex-shrink-0">
-              {liveSpeedup && liveSpeedup > 1 && (
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
-                  <div className="glass border border-accent/20 rounded-full px-4 py-2 glow-green animate-scale-in">
-                    <span className="font-mono text-lg font-bold text-accent">
-                      {liveSpeedup.toFixed(1)}x
-                    </span>
+            {/* Divider + live speedup */}
+            <div className="bg-border-subtle relative">
+              {liveSpeedup && liveSpeedup > 1.2 && (
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 anim-scale-up">
+                  <div className="glass border border-lime/15 rounded-full px-4 py-1.5 glow-breathe whitespace-nowrap">
+                    <span className="font-mono text-sm font-bold text-lime">{liveSpeedup.toFixed(1)}x</span>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Right: Rocket */}
-            <div className="flex-1 flex flex-col p-5 overflow-hidden">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-semibold text-accent">Rocket Booster</span>
-                  <PhaseIndicator phase={rocketPhase} />
+            {/* Right — Rocket */}
+            <div className="flex flex-col p-4 overflow-hidden">
+              <div className="flex items-center justify-between mb-2.5">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-[13px] font-medium text-lime">With Booster</span>
+                  <PhaseIndicator phase={rocketPh} />
                 </div>
-                <Timer
-                  elapsedMs={rocketTimer.elapsedMs}
-                  isComplete={rocketStatus?.status === 'complete'}
-                  variant="rocket"
-                />
+                <Timer elapsedMs={rocketTimer.elapsedMs} isComplete={rocketStatus?.status === 'complete'} variant="rocket" />
               </div>
-
-              <BrowserEmbed liveUrl={rocketStatus?.live_url ?? null} phase={rocketPhase} />
-
-              <div className="mt-3 flex-1 overflow-y-auto">
-                <StepTracker
-                  steps={rocketStatus?.steps ?? []}
-                  phase={rocketPhase}
-                  currentStep={rocketStatus?.current_step ?? ''}
-                />
+              <BrowserEmbed liveUrl={rocketStatus?.live_url ?? null} phase={rocketPh} />
+              <div className="mt-2.5 flex-1 overflow-y-auto">
+                <StepTracker steps={rocketStatus?.steps ?? []} phase={rocketPh} currentStep={rocketStatus?.current_step ?? ''} />
               </div>
             </div>
           </div>
-        )}
 
-        {/* Task context bar during race */}
-        {appState === 'racing' && (
-          <div className="border-t border-border-subtle px-6 py-2.5 flex items-center justify-between bg-surface/50">
-            <span className="text-xs text-text-muted font-mono truncate max-w-lg">
-              {currentTask}
-            </span>
-            <span className="text-xs text-text-muted font-mono">
-              {(baselineStatus?.steps.length ?? 0) + (rocketStatus?.steps.length ?? 0)} total steps
-            </span>
+          {/* Bottom bar */}
+          <div className="flex items-center justify-between px-5 h-8 border-t border-border-subtle text-[11px] font-mono text-text-muted">
+            <span className="truncate max-w-sm">{currentTask}</span>
+            <span>{(baseStatus?.steps.length ?? 0) + (rocketStatus?.steps.length ?? 0)} steps</span>
           </div>
-        )}
-      </main>
+        </div>
+      )}
 
-      {/* ── Results overlay ── */}
-      {appState === 'results' && baselineStatus && rocketStatus && (
+      {/* ━━━━━━━━━━━━━━━━━━ RESULTS ━━━━━━━━━━━━━━━━━━ */}
+      {view === 'results' && baseStatus && rocketStatus && (
         <ComparisonCard
-          baselineDurationMs={baselineStatus.duration_ms}
+          baselineDurationMs={baseStatus.duration_ms}
           rocketDurationMs={rocketStatus.duration_ms}
-          onReset={handleReset}
+          onReset={reset}
         />
       )}
     </div>

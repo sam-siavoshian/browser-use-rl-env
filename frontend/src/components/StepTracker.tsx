@@ -7,59 +7,47 @@ interface StepTrackerProps {
 }
 
 export function StepTracker({ steps, phase, currentStep }: StepTrackerProps) {
-  const isActive = phase !== 'idle' && phase !== 'complete' && phase !== 'error';
+  const isActive = phase === 'rocket' || phase === 'agent';
 
-  if (steps.length === 0 && phase === 'idle') {
-    return null;
-  }
+  if (steps.length === 0 && !isActive) return null;
 
   return (
-    <div className="flex flex-col gap-px">
+    <div className="flex flex-col">
       {steps.map((step, i) => {
-        const isRocket = step.type === 'playwright';
-
+        const fast = step.type === 'playwright';
         return (
           <div
             key={step.id}
-            className={`flex items-center gap-2.5 py-1.5 text-[13px] ${
-              isRocket ? 'animate-step-rocket' : 'animate-step-agent'
+            className={`flex items-center gap-2.5 py-[5px] text-[13px] leading-tight ${
+              fast ? 'anim-step-fast' : 'anim-step-slow'
             }`}
-            style={{ animationDelay: isRocket ? `${i * 30}ms` : '0ms' }}
+            style={fast ? { animationDelay: `${i * 25}ms` } : undefined}
           >
-            {/* Indicator line */}
-            <div className={`w-0.5 h-4 rounded-full ${
-              isRocket ? 'bg-accent' : 'bg-info/50'
+            <div className={`w-[3px] h-3.5 rounded-full flex-shrink-0 ${
+              fast ? 'bg-lime' : 'bg-sky/40'
             }`} />
-
-            {/* Description */}
-            <span className={`flex-1 truncate ${
-              isRocket ? 'text-text' : 'text-text-secondary'
-            }`}>
+            <span className={`flex-1 truncate ${fast ? 'text-text' : 'text-text-secondary'}`}>
               {step.description}
             </span>
-
-            {/* Duration */}
             {step.durationMs != null && (
-              <span className={`font-mono text-xs tabular-nums ${
-                isRocket ? 'text-accent/60' : 'text-text-muted'
+              <span className={`font-mono text-[11px] tabular-nums flex-shrink-0 ${
+                fast ? 'text-lime/50' : 'text-text-muted'
               }`}>
-                {step.durationMs < 1000
-                  ? `${step.durationMs}ms`
-                  : `${(step.durationMs / 1000).toFixed(1)}s`}
+                {step.durationMs < 1000 ? `${step.durationMs}ms` : `${(step.durationMs / 1000).toFixed(1)}s`}
               </span>
             )}
           </div>
         );
       })}
 
-      {/* Active step */}
+      {/* Currently executing step */}
       {isActive && currentStep && (
-        <div className="flex items-center gap-2.5 py-1.5 text-[13px]">
-          <div className={`w-0.5 h-4 rounded-full ${
-            phase === 'rocket' ? 'bg-accent animate-pulse' : 'bg-info/50 animate-pulse'
+        <div className="flex items-center gap-2.5 py-[5px] text-[13px]">
+          <div className={`w-[3px] h-3.5 rounded-full flex-shrink-0 ${
+            phase === 'rocket' ? 'bg-lime dot-pulse' : 'bg-sky/40 dot-pulse'
           }`} />
           <span className={`flex-1 truncate ${
-            phase === 'rocket' ? 'text-accent' : 'text-info'
+            phase === 'rocket' ? 'text-lime/80' : 'text-sky/80'
           }`}>
             {currentStep}
           </span>
