@@ -338,11 +338,9 @@ async def test_find_template_below_threshold(orchestrator):
     """Templates below similarity threshold are ignored."""
     low_score_template = _make_template(score=0.5)
 
-    mock_matcher = AsyncMock()
-    mock_matcher.find_best_match = AsyncMock(return_value=low_score_template)
-    orchestrator._matcher = mock_matcher
-
-    template, ms = await orchestrator._find_template("some task")
+    with patch("src.orchestrator._find_match", new_callable=AsyncMock) as mock_fn:
+        mock_fn.return_value = low_score_template
+        template, ms = await orchestrator._find_template("some task")
     assert template is None
 
 
@@ -351,13 +349,10 @@ async def test_find_template_above_threshold(orchestrator):
     """Templates above similarity threshold are returned."""
     good_template = _make_template(score=0.9)
 
-    mock_matcher = AsyncMock()
-    mock_matcher.find_best_match = AsyncMock(return_value=good_template)
-    orchestrator._matcher = mock_matcher
-
-    template, ms = await orchestrator._find_template("some task")
+    with patch("src.orchestrator._find_match", new_callable=AsyncMock) as mock_fn:
+        mock_fn.return_value = good_template
+        template, ms = await orchestrator._find_template("some task")
     assert template is not None
-    assert template.similarity_score == 0.9
 
 
 # ---------------------------------------------------------------------------

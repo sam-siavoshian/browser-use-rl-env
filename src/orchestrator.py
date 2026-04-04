@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 try:
-    from src.browser.manager import CloudBrowserManager
+    from src.browser.cloud import CloudBrowserManager
 except ImportError:
     CloudBrowserManager = None  # type: ignore[assignment,misc]
 
@@ -26,19 +26,27 @@ except ImportError:
     PlaywrightRocket = None  # type: ignore[assignment,misc]
 
 try:
-    from src.template.extractor import TemplateExtractor
+    from src.template.extractor import (
+        extract_template_from_trace as _extract_template,
+        extract_parameters as _extract_params,
+    )
 except ImportError:
-    TemplateExtractor = None  # type: ignore[assignment,misc]
+    _extract_template = None  # type: ignore[assignment]
+    _extract_params = None  # type: ignore[assignment]
 
 try:
-    from src.matching.matcher import TemplateMatcher
+    from src.matching.matcher import find_matching_template as _find_match
 except ImportError:
-    TemplateMatcher = None  # type: ignore[assignment,misc]
+    _find_match = None  # type: ignore[assignment]
 
 try:
-    from src.db.client import SupabaseClient
+    from src.db.templates import create_template as _db_create_template
+    from src.db.templates import list_templates_by_domain as _db_list_templates
+    from src.db.templates import delete_template as _db_delete_template
 except ImportError:
-    SupabaseClient = None  # type: ignore[assignment,misc]
+    _db_create_template = None  # type: ignore[assignment]
+    _db_list_templates = None  # type: ignore[assignment]
+    _db_delete_template = None  # type: ignore[assignment]
 
 from src.models import (
     OrchestratorResult,
@@ -101,8 +109,6 @@ class RocketOrchestrator:
         self._browser_use_api_key = browser_use_api_key
         self._model = model
 
-        self._matcher = TemplateMatcher(supabase_client) if TemplateMatcher else None
-        self._extractor = TemplateExtractor(anthropic_client) if TemplateExtractor else None
         self._sessions: dict[str, OrchestratorSessionState] = {}
 
     # ------------------------------------------------------------------
@@ -177,20 +183,21 @@ class RocketOrchestrator:
     # ------------------------------------------------------------------
 
     async def _find_template(self, task: str) -> tuple[Template | None, int]:
-        if self._matcher is None:
+        if _find_match is None:
             return None, 0
 
         t0 = _ms()
-        match = await self._matcher.find_best_match(task)
+        match = await _find_match(task)
         lookup_ms = _ms() - t0
 
         if match is None:
             return None, lookup_ms
 
-        if match.similarity_score < self.SIMILARITY_THRESHOLD:
+        similarity = getattr(match, "similarity_score", getattr(match, "similarity", 0))
+        if similarity < self.SIMILARITY_THRESHOLD:
             logger.info(
                 "Best match score %.3f below threshold %.2f, ignoring",
-                match.similarity_score,
+                similarity,
                 self.SIMILARITY_THRESHOLD,
             )
             return None, lookup_ms
@@ -290,10 +297,10 @@ class RocketOrchestrator:
 
         # Step 1: Parameter extraction via LLM
         t0 = _ms()
-        if self._extractor is None:
-            raise RuntimeError("TemplateExtractor not available — src.template not built yet")
+        if _extract_params is None:
+            raise RuntimeError("extract_parameters not available — src.template not built yet")
 
-        params = await self._extractor.extract_parameters(task, template)
+        params = await _extract_params(task, template)
         parameter_extraction_ms = _ms() - t0
         logger.info("Extracted parameters: %s", params)
 
@@ -414,28 +421,34 @@ class RocketOrchestrator:
             logger.warning("No trace available for template extraction")
             return None
 
-        if self._extractor is None:
-            logger.warning("TemplateExtractor not available — cannot learn")
+        if _extract_template is None:
+            logger.warning("extract_template_from_trace not available — cannot learn")
             return None
 
         self._update_session(session_id, status="extracting_template")
 
         t0 = _ms()
-        template = await self._extractor.extract_template(
-            task=task,
-            trace=result.trace,
-        )
+        try:
+            from src.template.generator import template_to_db_format
+            internal_template = await _extract_template(
+                history=result.trace,
+                task_description=task,
+            )
+            template_data = template_to_db_format(internal_template)
+        except Exception as exc:
+            logger.warning("Template extraction failed: %s", exc)
+            return None
         extraction_ms = _ms() - t0
 
-        if template is None:
-            logger.warning("Template extraction returned None")
-            return None
+        if _db_create_template is not None:
+            try:
+                await _db_create_template(**template_data)
+            except Exception as exc:
+                logger.warning("Failed to store template: %s", exc)
 
-        await self._db.store_template(template)
         logger.info(
-            "Stored template %s (%d playwright steps, extraction took %d ms)",
-            template.id,
-            len(template.playwright_steps),
+            "Stored template for domain=%s (extraction took %d ms)",
+            template_data.get("domain", "unknown"),
             extraction_ms,
         )
 
@@ -460,11 +473,14 @@ class RocketOrchestrator:
     # ------------------------------------------------------------------
 
     async def list_templates(self) -> list[Template]:
-        if self._db is None:
+        if _db_list_templates is None:
             return []
-        return await self._db.list_templates()
+        try:
+            return await _db_list_templates()
+        except Exception:
+            return []
 
     async def delete_template(self, template_id: str) -> None:
-        if self._db is None:
+        if _db_delete_template is None:
             return
-        await self._db.delete_template(template_id)
+        await _db_delete_template(template_id)

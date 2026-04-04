@@ -94,8 +94,8 @@ async def find_matching_template(
 
     similarity = float(row["similarity"])
 
-    # Apply similarity threshold
-    if similarity < 0.50:
+    # Apply similarity threshold — 0.75 minimum for any match
+    if similarity < 0.75:
         return None
 
     # Determine confidence band

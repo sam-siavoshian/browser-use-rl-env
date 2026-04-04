@@ -96,14 +96,13 @@ class TestConfidenceBands:
         assert result.confidence_band == "high"
 
     @pytest.mark.asyncio
-    async def test_medium_band(self, mock_embedding, mock_pool):
+    async def test_below_075_returns_none(self, mock_embedding, mock_pool):
         conn, _ = mock_pool
         conn.fetchrow.return_value = _make_row(similarity=0.60)
 
         result = await find_matching_template("Buy headphones on Amazon")
 
-        assert result is not None
-        assert result.confidence_band == "medium"
+        assert result is None  # 0.60 < 0.75 threshold
 
     @pytest.mark.asyncio
     async def test_below_threshold_returns_none(self, mock_embedding, mock_pool):
@@ -133,13 +132,12 @@ class TestConfidenceBands:
         assert result.confidence_band == "high"
 
     @pytest.mark.asyncio
-    async def test_boundary_050(self, mock_embedding, mock_pool):
+    async def test_boundary_050_returns_none(self, mock_embedding, mock_pool):
         conn, _ = mock_pool
         conn.fetchrow.return_value = _make_row(similarity=0.50)
 
         result = await find_matching_template("Buy headphones on Amazon")
-        assert result is not None
-        assert result.confidence_band == "medium"
+        assert result is None  # 0.50 < 0.75 threshold
 
 
 class TestDomainFiltering:
