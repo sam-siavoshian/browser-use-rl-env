@@ -110,7 +110,7 @@ function App() {
     ? baseTimer.elapsedMs / rocketTimer.elapsedMs : null;
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden relative" style={{ background: '#0a0a0a' }}>
+    <div className={`h-screen flex flex-col relative ${view === 'idle' ? 'overflow-y-auto' : 'overflow-hidden'}`} style={{ background: '#0a0a0a' }}>
       <div className="fixed inset-0 pointer-events-none z-0">
         <div className="absolute top-[-300px] left-1/2 -translate-x-1/2 w-[700px] h-[700px] rounded-full"
           style={{ background: 'radial-gradient(circle, rgba(200,255,0,0.025) 0%, transparent 65%)' }} />
