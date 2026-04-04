@@ -1,175 +1,164 @@
 /**
- * Architecture — technical breakdown of how Rocket Booster works.
- *
- * Shows the RL loop as a visual pipeline: task → memory check → rocket/agent → learn.
- * Designed for hackathon judges who want to see the real system, not marketing.
+ * Architecture — real system diagram with SVG wiring between nodes.
+ * Not cards. An actual flowchart you'd draw on a whiteboard.
  */
 
 export function Architecture() {
   return (
-    <div className="w-full max-w-[640px]">
-      <p className="text-[10px] font-mono uppercase tracking-[0.25em] text-text-muted text-center mb-4">
-        System Architecture
+    <div className="w-full max-w-[660px]">
+      <p className="text-[10px] font-mono uppercase tracking-[0.25em] text-text-muted text-center mb-5">
+        How it works
       </p>
 
-      <div className="rounded-2xl border border-border overflow-hidden bg-surface">
+      <div className="relative" style={{ height: 420 }}>
 
-        {/* ── Pipeline overview ── */}
-        <div className="px-5 pt-5 pb-4">
-          <div className="flex items-center gap-2 mb-4">
+        {/* ════ SVG WIRING LAYER ════ */}
+        <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 0 }}>
+          {/* Task → diamond */}
+          <Line x1="330" y1="44" x2="330" y2="88" />
+
+          {/* Diamond → YES (left, to Rocket) */}
+          <Line x1="280" y1="113" x2="140" y2="113" />
+          <Line x1="140" y1="113" x2="140" y2="168" />
+
+          {/* Diamond → NO (right, to Full Agent) */}
+          <Line x1="380" y1="113" x2="520" y2="113" />
+          <Line x1="520" y1="113" x2="520" y2="168" />
+
+          {/* Rocket → merge point */}
+          <Line x1="140" y1="246" x2="140" y2="278" />
+          <Line x1="140" y1="278" x2="330" y2="278" />
+          <Line x1="330" y1="278" x2="330" y2="298" />
+
+          {/* Full Agent → merge point */}
+          <Line x1="520" y1="246" x2="520" y2="278" />
+          <Line x1="520" y1="278" x2="330" y2="278" />
+
+          {/* Agent handoff → Result */}
+          <Line x1="330" y1="366" x2="330" y2="390" />
+
+          {/* Learning loop: result → back to Supabase */}
+          <path
+            d="M 258 405 L 58 405 L 58 113 L 108 113"
+            fill="none"
+            stroke="rgba(251,191,36,0.2)"
+            strokeWidth="1"
+            strokeDasharray="4 3"
+          />
+
+          {/* YES / NO labels */}
+          <text x="195" y="106" fill="rgba(200,255,0,0.5)" fontSize="9" fontFamily="monospace">YES</text>
+          <text x="425" y="106" fill="rgba(255,100,100,0.4)" fontSize="9" fontFamily="monospace">NO</text>
+
+          {/* Loop label */}
+          <text x="26" y="270" fill="rgba(251,191,36,0.3)" fontSize="8" fontFamily="monospace" transform="rotate(-90, 42, 265)">learn loop</text>
+        </svg>
+
+        {/* ════ NODE LAYER ════ */}
+
+        {/* Task input */}
+        <Node x={255} y={10} w={150} h={34}>
+          <span className="text-[10px] font-mono text-text-muted">user task</span>
+          <span className="text-[11px] text-text">&quot;Search for X on Amazon&quot;</span>
+        </Node>
+
+        {/* Decision diamond */}
+        <div className="absolute" style={{ left: 280, top: 80, zIndex: 1 }}>
+          <div
+            className="w-[100px] h-[52px] flex items-center justify-center"
+            style={{
+              background: '#111',
+              border: '1px solid rgba(200,255,0,0.15)',
+              clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)',
+            }}
+          >
+            <span className="text-[8px] font-mono text-lime/70 leading-tight text-center">template<br />exists?</span>
+          </div>
+        </div>
+
+        {/* LEFT: Rocket Phase */}
+        <Node x={60} y={168} w={160} h={78} border="rgba(200,255,0,0.12)">
+          <span className="text-[9px] font-mono text-lime/50 tracking-wider">PLAYWRIGHT ROCKET</span>
+          <span className="text-[10px] text-text-dim mt-1">Replays known steps via CDP</span>
+          <span className="text-[9px] text-text-muted mt-0.5">navigate, click, fill, press</span>
+          <span className="text-[9px] font-mono text-lime/40 mt-1">~200ms/step &middot; 0 LLM calls</span>
+        </Node>
+
+        {/* RIGHT: Full Agent (no template) */}
+        <Node x={440} y={168} w={160} h={78} border="rgba(255,100,100,0.08)">
+          <span className="text-[9px] font-mono text-red-400/40 tracking-wider">FULL AGENT</span>
+          <span className="text-[10px] text-text-dim mt-1">No template. LLM every step.</span>
+          <span className="text-[9px] text-text-muted mt-0.5">reason, act, observe, repeat</span>
+          <span className="text-[9px] font-mono text-red-400/30 mt-1">~3s/step &middot; expensive</span>
+        </Node>
+
+        {/* CENTER: Agent handoff */}
+        <Node x={230} y={298} w={200} h={68} border="rgba(56,189,248,0.12)">
+          <span className="text-[9px] font-mono text-sky/50 tracking-wider">AGENT HANDOFF</span>
+          <span className="text-[10px] text-text-dim mt-1">Claude takes over at the handoff point</span>
+          <span className="text-[9px] text-text-muted mt-0.5">Only handles dynamic steps (decisions)</span>
+        </Node>
+
+        {/* Result + learn arrow */}
+        <div className="absolute flex items-center gap-3" style={{ left: 196, top: 388, zIndex: 1 }}>
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-md border" style={{ background: '#0d0d0d', borderColor: '#222' }}>
             <div className="w-1.5 h-1.5 rounded-full bg-lime" />
-            <span className="text-[11px] font-mono text-text-muted tracking-wide">THE RL LOOP</span>
+            <span className="text-[10px] text-text-dim">Result</span>
           </div>
-
-          {/* Pipeline flow — horizontal with arrows */}
-          <div className="flex items-stretch gap-0 text-center">
-            {/* Task */}
-            <div className="flex-1 rounded-l-lg border border-border px-2 py-3" style={{ background: '#0d0d0d' }}>
-              <div className="text-[9px] font-mono text-text-muted mb-1">INPUT</div>
-              <div className="text-[12px] text-text font-medium">Task</div>
-              <div className="text-[9px] text-text-muted mt-0.5 italic">"Buy X on Amazon"</div>
-            </div>
-
-            <Arrow />
-
-            {/* Memory check */}
-            <div className="flex-1 border-y border-border px-2 py-3" style={{ background: 'rgba(200,255,0,0.02)' }}>
-              <div className="text-[9px] font-mono text-lime/60 mb-1">QUERY</div>
-              <div className="text-[12px] text-lime font-medium">pgvector</div>
-              <div className="text-[9px] text-text-muted mt-0.5">cosine similarity</div>
-            </div>
-
-            <Arrow />
-
-            {/* Execution */}
-            <div className="flex-1 border-y border-border px-2 py-3" style={{ background: '#0d0d0d' }}>
-              <div className="text-[9px] font-mono text-sky/60 mb-1">EXECUTE</div>
-              <div className="text-[12px] text-text font-medium">Rocket + Agent</div>
-              <div className="text-[9px] text-text-muted mt-0.5">Playwright → LLM</div>
-            </div>
-
-            <Arrow />
-
-            {/* Learn */}
-            <div className="flex-1 rounded-r-lg border border-border px-2 py-3" style={{ background: 'rgba(251,191,36,0.02)' }}>
-              <div className="text-[9px] font-mono text-amber-400/60 mb-1">STORE</div>
-              <div className="text-[12px] text-amber-400 font-medium">Template</div>
-              <div className="text-[9px] text-text-muted mt-0.5">→ Supabase</div>
-            </div>
+          <svg width="20" height="12" viewBox="0 0 20 12" fill="none">
+            <path d="M2 6h14M13 2l4 4-4 4" stroke="rgba(251,191,36,0.3)" strokeWidth="1" strokeLinecap="round" />
+          </svg>
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-md border" style={{ background: 'rgba(251,191,36,0.03)', borderColor: 'rgba(251,191,36,0.15)' }}>
+            <div className="w-1.5 h-1.5 rounded-full bg-amber-400/60" />
+            <span className="text-[10px] text-amber-400/70 font-mono">extract_template → supabase</span>
           </div>
         </div>
 
-        <div className="border-t border-border" />
-
-        {/* ── The two phases ── */}
-        <div className="grid grid-cols-[1fr_1px_1fr]">
-
-          {/* Rocket phase */}
-          <div className="p-4">
-            <div className="flex items-center gap-2 mb-2.5">
-              <div className="w-5 h-5 rounded-md flex items-center justify-center" style={{ background: 'rgba(200,255,0,0.08)' }}>
-                <span className="text-[10px]">⚡</span>
-              </div>
-              <div>
-                <div className="text-[12px] text-lime font-medium">Rocket Phase</div>
-                <div className="text-[9px] font-mono text-text-muted">~200ms / step</div>
-              </div>
-            </div>
-
-            <div className="space-y-1.5 ml-7">
-              <Step label="Playwright" desc="connect_over_cdp()" color="lime" />
-              <Step label="Execute" desc="navigate, click, fill, press" color="lime" />
-              <Step label="Verify" desc="wait_for_selector at each step" color="lime" />
-              <Step label="Disconnect" desc="browser.disconnect()" color="lime" />
-            </div>
-
-            <div className="mt-3 ml-7 px-2.5 py-1.5 rounded-md text-[10px] font-mono" style={{ background: 'rgba(200,255,0,0.04)', color: 'rgba(200,255,0,0.5)' }}>
-              0 LLM calls. Pure automation.
-            </div>
-          </div>
-
-          <div className="bg-border relative">
-            <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[9px] font-mono text-text-muted px-1 py-0.5 rounded" style={{ background: '#111' }}>
-              then
-            </span>
-          </div>
-
-          {/* Agent phase */}
-          <div className="p-4">
-            <div className="flex items-center gap-2 mb-2.5">
-              <div className="w-5 h-5 rounded-md flex items-center justify-center" style={{ background: 'rgba(56,189,248,0.08)' }}>
-                <span className="text-[10px]">🧠</span>
-              </div>
-              <div>
-                <div className="text-[12px] text-sky font-medium">Agent Phase</div>
-                <div className="text-[9px] font-mono text-text-muted">~3s / step</div>
-              </div>
-            </div>
-
-            <div className="space-y-1.5 ml-7">
-              <Step label="Handoff" desc="agent sees page state from Playwright" color="sky" />
-              <Step label="Reason" desc="Claude Sonnet picks next action" color="sky" />
-              <Step label="Act" desc="dynamic steps only (the hard part)" color="sky" />
-              <Step label="Done" desc="result returned" color="sky" />
-            </div>
-
-            <div className="mt-3 ml-7 px-2.5 py-1.5 rounded-md text-[10px] font-mono" style={{ background: 'rgba(56,189,248,0.04)', color: 'rgba(56,189,248,0.5)' }}>
-              LLM only where reasoning is needed.
-            </div>
-          </div>
-        </div>
-
-        <div className="border-t border-border" />
-
-        {/* ── Tech stack strip ── */}
-        <div className="flex items-center justify-between px-5 py-3" style={{ background: 'rgba(200,255,0,0.01)' }}>
-          <div className="flex items-center gap-4">
-            {[
-              { name: 'Browser Use', role: 'cloud browser' },
-              { name: 'Playwright', role: 'rocket executor' },
-              { name: 'Claude', role: 'agent brain' },
-              { name: 'Supabase', role: 'pgvector memory' },
-            ].map((t) => (
-              <div key={t.name} className="flex items-baseline gap-1.5">
-                <span className="text-[11px] text-text-dim font-medium">{t.name}</span>
-                <span className="text-[9px] text-text-muted font-mono">{t.role}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* ── Key insight ── */}
-        <div className="border-t border-border px-5 py-3 text-center" style={{ background: 'rgba(200,255,0,0.015)' }}>
-          <p className="text-[12px] text-text-dim leading-relaxed">
-            Most browser steps <span className="font-mono text-lime/70">don't need reasoning</span>.
-            The rocket handles the deterministic 80%.
-            The LLM handles the interesting 20%.
-          </p>
-        </div>
+        {/* Floating tech labels near wires */}
+        <Label x={88} y={152} text="Playwright + CDP" />
+        <Label x={476} y={152} text="browser-use" />
+        <Label x={282} y={286} text="Claude Sonnet 4.6" />
       </div>
     </div>
   );
 }
 
 
-function Arrow() {
+function Node({
+  x, y, w, h, border, children,
+}: {
+  x: number; y: number; w: number; h: number;
+  border?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="flex items-center -mx-px z-10">
-      <svg width="16" height="24" viewBox="0 0 16 24" fill="none" className="shrink-0">
-        <path d="M2 12h10M9 8l4 4-4 4" stroke="rgba(85,85,85,0.4)" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
+    <div
+      className="absolute flex flex-col items-center justify-center text-center px-3"
+      style={{
+        left: x, top: y, width: w, height: h,
+        background: '#0e0e0e',
+        border: `1px solid ${border || 'rgba(100,100,100,0.2)'}`,
+        borderRadius: 8,
+        zIndex: 1,
+      }}
+    >
+      {children}
     </div>
   );
 }
 
-
-function Step({ label, desc, color }: { label: string; desc: string; color: 'lime' | 'sky' }) {
-  const dotColor = color === 'lime' ? 'rgba(200,255,0,0.3)' : 'rgba(56,189,248,0.3)';
+function Line({ x1, y1, x2, y2 }: { x1: string; y1: string; x2: string; y2: string }) {
   return (
-    <div className="flex items-baseline gap-2">
-      <div className="w-1 h-1 rounded-full mt-1.5 shrink-0" style={{ background: dotColor }} />
-      <span className="text-[10px] font-mono text-text-dim">{label}</span>
-      <span className="text-[9px] text-text-muted">{desc}</span>
+    <line x1={x1} y1={y1} x2={x2} y2={y2}
+      stroke="rgba(85,85,85,0.25)" strokeWidth="1"
+    />
+  );
+}
+
+function Label({ x, y, text }: { x: number; y: number; text: string }) {
+  return (
+    <div className="absolute text-[8px] font-mono text-text-muted/30" style={{ left: x, top: y, zIndex: 2 }}>
+      {text}
     </div>
   );
 }
