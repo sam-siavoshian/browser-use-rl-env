@@ -185,6 +185,18 @@ async def _run_agent(session_id: str, task: str, cdp_url: str, rocket_steps_done
             f"Pick up from the current state and complete the remaining work."
         )
 
+    # Real-time step callback — streams each agent step to the frontend as it happens
+    async def on_step(browser_state, model_output, n_steps):
+        actions = model_output.action if model_output and model_output.action else []
+        action_names = []
+        for a in actions:
+            for k, v in a.model_dump(exclude_unset=True).items():
+                if v is not None and k != "index":
+                    action_names.append(k)
+        goal = model_output.next_goal if model_output else None
+        desc = goal or ", ".join(action_names) or f"Step {n_steps}"
+        _step(session_id, f"Agent: {desc}", "agent")
+
     _step(session_id, "Agent starting...", "agent")
     agent = Agent(
         task=agent_task,
@@ -192,12 +204,9 @@ async def _run_agent(session_id: str, task: str, cdp_url: str, rocket_steps_done
         browser_session=bu_session,
         max_failures=5,
         max_actions_per_step=5,
+        register_new_step_callback=on_step,
     )
     history = await agent.run()
-
-    # Log agent actions as steps
-    for name in history.action_names():
-        _step(session_id, f"Agent: {name}", "agent")
 
     return history
 

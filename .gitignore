@@ -39,3 +39,4 @@ test-results/
 # Misc
 *.log
 .claude/
+.gstack/

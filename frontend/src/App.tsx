@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ChevronRightIcon, RocketIcon, SearchIcon, SparklesIcon } from 'lucide-animated';
 import { TaskInput } from './components/TaskInput';
 import { BrowserEmbed } from './components/BrowserEmbed';
 import { Timer } from './components/Timer';
@@ -17,8 +16,21 @@ import type { Template, Phase } from './types';
 
 type View = 'idle' | 'learning' | 'racing' | 'results';
 
+function pathToView(pathname: string): View {
+  const p = pathname.replace(/\/+$/, '') || '/';
+  if (p === '/learn') return 'learning';
+  if (p === '/race') return 'racing';
+  if (p === '/results') return 'results';
+  return 'idle';
+}
+
 function App() {
-  const [view, setView] = useState<View>('idle');
+  const location = useLocation();
+  const navigate = useNavigate();
+  const view = useMemo(() => pathToView(location.pathname), [location.pathname]);
+
+  const [learnStarting, setLearnStarting] = useState(false);
+  const [raceStarting, setRaceStarting] = useState(false);
   const [currentTask, setCurrentTask] = useState('');
   const [baselineId, setBaselineId] = useState<string | null>(null);
   const [rocketId, setRocketId] = useState<string | null>(null);
@@ -47,9 +59,32 @@ function App() {
 
   useEffect(() => {
     if (baseStatus?.status === 'complete' && rocketStatus?.status === 'complete') {
-      setTimeout(() => setView('results'), 600);
+      const t = setTimeout(() => navigate('/results'), 600);
+      return () => clearTimeout(t);
     }
-  }, [baseStatus?.status, rocketStatus?.status]);
+  }, [baseStatus?.status, rocketStatus?.status, navigate]);
+
+  /** Cold deep-links without an active session */
+  useEffect(() => {
+    if (view === 'learning' && !learnId && !learnStarting) {
+      navigate('/', { replace: true });
+    }
+  }, [view, learnId, learnStarting, navigate]);
+
+  useEffect(() => {
+    if (view === 'racing' && !baselineId && !raceStarting) {
+      navigate('/', { replace: true });
+    }
+  }, [view, baselineId, raceStarting, navigate]);
+
+  /** Unknown paths → home */
+  useEffect(() => {
+    const p = location.pathname.replace(/\/+$/, '') || '/';
+    const allowed = ['/', '/learn', '/race', '/results'];
+    if (!allowed.includes(p)) {
+      navigate('/', { replace: true });
+    }
+  }, [location.pathname, navigate]);
 
   // When Race is clicked, show the search card inline (don't change view)
   const [searchingTask, setSearchingTask] = useState<string | null>(null);
@@ -67,28 +102,38 @@ function App() {
     setRocketId(null);
     baseTimer.reset();
     rocketTimer.reset();
-    setView('racing');
+    setRaceStarting(true);
+    navigate('/race');
     try {
       const { baseline_session_id, rocket_session_id } = await startCompare(task);
       setBaselineId(baseline_session_id);
       setRocketId(rocket_session_id);
       baseTimer.start();
       rocketTimer.start();
-    } catch { setView('idle'); }
-  }, [searchingTask, currentTask, baseTimer, rocketTimer]);
+    } catch {
+      navigate('/');
+    } finally {
+      setRaceStarting(false);
+    }
+  }, [searchingTask, currentTask, baseTimer, rocketTimer, navigate]);
 
   const learn = useCallback(async (task: string) => {
     setCurrentTask(task);
     setSearchingTask(null);
     setLearnId(null);
     learnTimer.reset();
-    setView('learning');
+    setLearnStarting(true);
+    navigate('/learn');
     try {
       const sessionId = await startLearn(task);
       setLearnId(sessionId);
       learnTimer.start();
-    } catch { setView('idle'); }
-  }, [learnTimer]);
+    } catch {
+      navigate('/');
+    } finally {
+      setLearnStarting(false);
+    }
+  }, [learnTimer, navigate]);
 
   const reset = useCallback(() => {
     setSearchingTask(null);
@@ -98,9 +143,9 @@ function App() {
     baseTimer.reset();
     rocketTimer.reset();
     learnTimer.reset();
-    setView('idle');
+    navigate('/');
     getTemplates().then(setTemplates).catch(() => {});
-  }, [baseTimer, rocketTimer, learnTimer]);
+  }, [baseTimer, rocketTimer, learnTimer, navigate]);
 
   const basePh: Phase = baseStatus?.phase ?? 'idle';
   const rocketPh: Phase = rocketStatus?.phase ?? 'idle';
@@ -110,7 +155,7 @@ function App() {
     ? baseTimer.elapsedMs / rocketTimer.elapsedMs : null;
 
   return (
-    <div className={`h-screen flex flex-col relative ${view === 'idle' ? 'overflow-y-auto' : 'overflow-hidden'}`} style={{ background: '#0a0a0a' }}>
+    <div className={`h-screen min-h-0 flex flex-col relative ${view === 'idle' ? 'overflow-y-auto' : 'overflow-hidden'}`} style={{ background: '#0a0a0a' }}>
       <div className="fixed inset-0 pointer-events-none z-0">
         <div className="absolute top-[-300px] left-1/2 -translate-x-1/2 w-[700px] h-[700px] rounded-full"
           style={{ background: 'radial-gradient(circle, rgba(200,255,0,0.025) 0%, transparent 65%)' }} />
@@ -119,49 +164,25 @@ function App() {
       {/* ━━━ IDLE ━━━ */}
       {view === 'idle' && (
         <div className="flex-1 flex flex-col relative z-10">
-          {/* Header with inline flow */}
-          <header className="flex items-center justify-between px-8 h-12 border-b border-border-subtle flex-shrink-0" style={{ background: '#0a0a0a' }}>
-            <div className="flex items-center gap-2">
-              <div className="w-[6px] h-[6px] rounded-full bg-lime" />
-              <span className="text-[13px] font-medium text-text-dim tracking-tight">Rocket Booster</span>
-            </div>
+          {/* Pixel trail — inside idle so it receives mouse events */}
+          <PixelBackground />
 
-            {/* Flow steps in header */}
-            <div className="flex items-center gap-1">
-              {[
-                { icon: <SearchIcon size={10} />, label: 'Learn a task' },
-                { icon: <SparklesIcon size={10} />, label: 'Extract playbook' },
-                { icon: <RocketIcon size={10} />, label: 'Replay at 5x' },
-              ].map((step, i) => (
-                <span key={step.label} className="flex items-center gap-1.5">
-                  {i > 0 && <ChevronRightIcon size={10} className="text-text-muted/40" />}
-                  <span className="flex items-center gap-1 text-[10px] text-text-muted font-mono px-1.5 py-0.5 rounded-md" style={{ background: '#111' }}>
-                    <span className="text-text-muted/60">{step.icon}</span>
-                    {step.label}
-                  </span>
-                </span>
-              ))}
-            </div>
-
-            <span className="text-[11px] font-mono text-text-muted tracking-wide">DIMOND HACKS &apos;26</span>
-          </header>
-
-          {/* Content — single viewport, vertically centered */}
-          <div className="flex-1 flex flex-col items-center justify-center px-6">
+          {/* Content — top inset so the hero is not flush with the viewport */}
+          <div className="flex-1 flex flex-col items-center justify-start px-6 pt-16 sm:pt-20 pb-20 relative z-10">
 
             {/* Headline */}
             <div className="text-center mb-6">
               <h1 className="font-serif text-[60px] leading-[1.05] tracking-[-0.01em] text-text italic anim-fade-up">
                 Make browser-use<br />agents fly.
               </h1>
-              <p className="text-[14px] text-text-dim mt-4 max-w-[400px] mx-auto leading-[1.6] anim-fade-up" style={{ animationDelay: '80ms' }}>
+              <p className="text-[14px] text-text-dim mt-8 max-w-[400px] mx-auto leading-[1.6] anim-fade-up" style={{ animationDelay: '80ms' }}>
                 <strong className="text-amber-400">Learn</strong> a task, then <strong className="text-lime">Race</strong> to watch Playwright
                 blast through the known steps while the agent handles the rest.
               </p>
             </div>
 
             {/* Input + search card dropdown */}
-            <div className="w-full flex flex-col items-center mb-7 anim-fade-up" style={{ animationDelay: '140ms' }}>
+            <div className="w-full flex flex-col items-center mb-16 anim-fade-up" style={{ animationDelay: '140ms' }}>
               <TaskInput onRun={launch} onLearn={learn} isRunning={false} />
 
               {/* Search card — slides open below input when Race is clicked */}
@@ -178,12 +199,12 @@ function App() {
             </div>
 
             {/* Compact analogy with animated speed bars */}
-            <div className="anim-fade-up" style={{ animationDelay: '200ms' }}>
+            <div className="mt-10 anim-fade-up" style={{ animationDelay: '200ms' }}>
               <Analogy />
             </div>
 
             {/* Architecture diagram */}
-            <div className="mt-8 anim-fade-up" style={{ animationDelay: '260ms' }}>
+            <div className="mt-16 anim-fade-up" style={{ animationDelay: '260ms' }}>
               <Architecture />
             </div>
 
@@ -199,16 +220,17 @@ function App() {
 
       {/* ━━━ LEARNING ━━━ */}
       {view === 'learning' && (
-        <div className="flex-1 flex flex-col relative z-10 anim-fade-in">
-          <header className="flex items-center gap-4 px-5 h-11 border-b border-border-subtle">
+        <div className="flex-1 flex flex-col min-h-0 relative z-10 anim-fade-in">
+          <header className="flex-shrink-0 flex items-center gap-4 px-5 h-11 border-b border-border-subtle">
             <div className="flex items-center gap-2 flex-shrink-0">
               <div className="w-[6px] h-[6px] rounded-full bg-amber-400 dot-pulse" />
               <span className="text-[13px] font-medium text-amber-400">Learning Mode</span>
             </div>
-            <div className="flex-1 text-[12px] text-text-muted truncate font-mono">{currentTask}</div>
+            <div className="flex-1 text-[12px] text-text-muted truncate font-mono min-w-0">{currentTask}</div>
             <Timer elapsedMs={learnTimer.elapsedMs} isComplete={learnStatus?.status === 'complete'} variant="baseline" />
           </header>
-          <div className="flex-1 flex flex-col items-center p-6 overflow-y-auto">
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+            <div className="flex flex-col items-center p-6 pb-10">
             <div className="w-full max-w-3xl">
               <div className="flex items-center gap-2.5 mb-3">
                 <PhaseIndicator phase={learnPh} />
@@ -245,14 +267,15 @@ function App() {
                 </div>
               )}
             </div>
+            </div>
           </div>
         </div>
       )}
 
       {/* ━━━ RACING ━━━ */}
       {view === 'racing' && (
-        <div className="flex-1 flex flex-col relative z-10 anim-fade-in">
-          <header className="flex items-center gap-4 px-5 h-11 border-b border-border-subtle">
+        <div className="flex-1 flex flex-col min-h-0 relative z-10 anim-fade-in">
+          <header className="flex-shrink-0 flex items-center gap-4 px-5 h-11 border-b border-border-subtle">
             <div className="flex items-center gap-2 flex-shrink-0">
               <div className="w-[6px] h-[6px] rounded-full bg-lime" />
               <span className="text-[13px] font-medium text-text-dim">Rocket Booster</span>
@@ -312,6 +335,9 @@ function App() {
       )}
 
       {/* ━━━ RESULTS ━━━ */}
+      {view === 'results' && (!baseStatus || !rocketStatus) && (
+        <Navigate to="/" replace />
+      )}
       {view === 'results' && baseStatus && rocketStatus && (
         <ComparisonCard baselineDurationMs={baseStatus.duration_ms} rocketDurationMs={rocketStatus.duration_ms} onReset={reset} />
       )}

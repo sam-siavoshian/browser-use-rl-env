@@ -9,8 +9,12 @@ interface TaskInputProps {
   compact?: boolean;
 }
 
+/** Default demo task — HN front page → top story → top comments */
+export const DEFAULT_TASK =
+  'Go to news.ycombinator.com, open the #1 story on the front page, and extract the top comments from that post.';
+
 export function TaskInput({ onRun, onLearn, isRunning, onStop, compact }: TaskInputProps) {
-  const [task, setTask] = useState('Search for "best coffee shops in SF" on Google');
+  const [task, setTask] = useState(DEFAULT_TASK);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,9 +34,10 @@ export function TaskInput({ onRun, onLearn, isRunning, onStop, compact }: TaskIn
         <input
           type="text"
           value={task}
+          title={task}
           onChange={(e) => setTask(e.target.value)}
           disabled={isRunning}
-          className="flex-1 h-8 px-3 bg-transparent border border-border rounded-lg text-[13px] text-text placeholder-text-muted focus:outline-none focus:border-lime/30 transition-colors disabled:opacity-30"
+          className="min-w-0 flex-1 h-8 px-3 bg-transparent border border-border rounded-lg text-[13px] text-text placeholder-text-muted focus:outline-none focus:border-lime/30 transition-colors disabled:opacity-30 truncate"
         />
         <button
           type="submit"
@@ -55,10 +60,11 @@ export function TaskInput({ onRun, onLearn, isRunning, onStop, compact }: TaskIn
         <input
           type="text"
           value={task}
+          title={task}
           onChange={(e) => setTask(e.target.value)}
-          placeholder="What should the browser agent do?"
+          placeholder="e.g. Go to a site, do one thing, return structured data…"
           disabled={isRunning}
-          className="relative w-full h-[52px] pl-5 pr-[252px] bg-surface border border-border rounded-2xl text-[14px] text-text placeholder-text-muted focus:outline-none focus:border-lime/25 transition-all disabled:opacity-30"
+          className="relative w-full min-w-0 h-[52px] pl-5 pr-[252px] bg-surface border border-border rounded-2xl text-[14px] text-text placeholder-text-muted focus:outline-none focus:border-lime/25 transition-all disabled:opacity-30 truncate"
         />
         <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
           {onLearn && (

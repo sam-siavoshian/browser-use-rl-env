@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 
@@ -46,14 +47,22 @@ class CloudBrowserManager:
         if timeout_minutes != 60:
             body["timeout"] = timeout_minutes
 
+        max_retries = 3
         async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{BROWSER_USE_API_BASE}/browsers",
-                headers=self._headers(),
-                json=body,
-                timeout=30.0,
-            )
-            response.raise_for_status()
+            for attempt in range(max_retries):
+                response = await client.post(
+                    f"{BROWSER_USE_API_BASE}/browsers",
+                    headers=self._headers(),
+                    json=body,
+                    timeout=30.0,
+                )
+                if response.status_code == 429 and attempt < max_retries - 1:
+                    wait = 2 ** attempt + 1  # 2s, 3s, 5s
+                    logger.warning("Rate limited (429), retrying in %ds (attempt %d/%d)", wait, attempt + 1, max_retries)
+                    await asyncio.sleep(wait)
+                    continue
+                response.raise_for_status()
+                break
             data = response.json()
 
             if "cdpUrl" not in data:
@@ -72,9 +81,10 @@ class CloudBrowserManager:
     async def stop(self, browser_id: str) -> None:
         """Stop a BaaS browser session. Idempotent — safe to call on already-stopped sessions."""
         async with httpx.AsyncClient() as client:
-            response = await client.delete(
+            response = await client.patch(
                 f"{BROWSER_USE_API_BASE}/browsers/{browser_id}",
-                headers={"X-Browser-Use-API-Key": self._api_key},
+                headers=self._headers(),
+                json={"action": "stop"},
                 timeout=15.0,
             )
             # 404 = already stopped, which is fine

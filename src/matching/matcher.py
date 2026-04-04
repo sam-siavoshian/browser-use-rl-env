@@ -5,10 +5,10 @@ cosine similarity search to find the best matching template for a task.
 """
 
 import json
+import os
 from dataclasses import dataclass
 from typing import Any
 
-from ..db.client import get_pg_pool
 from ..db.embeddings import generate_embedding
 from .action_type import classify_action_type
 from .domain import extract_domain
@@ -53,46 +53,57 @@ async def find_matching_template(
 
     # Layer 3: Embedding similarity search
     embedding = generate_embedding(task_description)
-    embedding_str = json.dumps(embedding)
 
-    pool = await get_pg_pool()
+    from supabase import create_client
+    client = create_client(
+        os.environ.get("SUPABASE_URL", ""),
+        os.environ.get("SUPABASE_SERVICE_ROLE_KEY", ""),
+    )
 
-    if action_type:
-        query = """
-            SELECT
-                id, task_pattern, steps, handoff_index, parameters,
-                confidence, action_type, domain,
-                1 - (embedding <=> $1::vector) AS similarity
-            FROM task_templates
-            WHERE domain = $2
-              AND action_type = $3
-              AND confidence >= 0.2
-            ORDER BY embedding <=> $1::vector ASC
-            LIMIT 1
-        """
-        async with pool.acquire() as conn:
-            row = await conn.fetchrow(
-                query, embedding_str, domain, action_type
-            )
-    else:
-        query = """
-            SELECT
-                id, task_pattern, steps, handoff_index, parameters,
-                confidence, action_type, domain,
-                1 - (embedding <=> $1::vector) AS similarity
-            FROM task_templates
-            WHERE domain = $2
-              AND confidence >= 0.2
-            ORDER BY embedding <=> $1::vector ASC
-            LIMIT 1
-        """
-        async with pool.acquire() as conn:
-            row = await conn.fetchrow(query, embedding_str, domain)
+    # Fetch templates and compute similarity in Python (works without pgvector RPC)
+    import numpy as np
 
-    if row is None:
+    # Fetch all templates with confidence >= 0.2
+    query = client.table("task_templates").select(
+        "id, task_pattern, steps, handoff_index, parameters, confidence, action_type, domain, embedding"
+    ).gte("confidence", 0.2)
+    result = query.execute()
+
+    # Filter by domain match (flexible: handles subdomains like news.ycombinator.com vs ycombinator.com)
+    domain_filtered = []
+    for t in result.data:
+        t_domain = t.get("domain", "")
+        if (t_domain == domain
+            or t_domain.endswith(f".{domain}")
+            or domain.endswith(f".{t_domain}")
+            or domain in t_domain
+            or t_domain in domain):
+            domain_filtered.append(t)
+    result_data = domain_filtered if domain_filtered else result.data
+
+    rows = []
+    query_vec = np.array(embedding)
+    query_norm = np.linalg.norm(query_vec)
+    for t in result_data:
+        t_emb = t.get("embedding")
+        if not t_emb:
+            continue
+        if isinstance(t_emb, str):
+            t_emb = json.loads(t_emb)
+        t_vec = np.array(t_emb)
+        t_norm = np.linalg.norm(t_vec)
+        if query_norm == 0 or t_norm == 0:
+            continue
+        sim = float(np.dot(query_vec, t_vec) / (query_norm * t_norm))
+        t["similarity"] = sim
+        rows.append(t)
+    rows.sort(key=lambda x: x.get("similarity", 0), reverse=True)
+
+    if not rows:
         return None
 
-    similarity = float(row["similarity"])
+    row = rows[0]
+    similarity = float(row.get("similarity", 0))
 
     # Apply similarity threshold — 0.75 minimum for any match
     if similarity < 0.75:
@@ -106,23 +117,22 @@ async def find_matching_template(
     else:
         band = "medium"
 
+    steps = row.get("steps", [])
+    if isinstance(steps, str):
+        steps = json.loads(steps)
+    parameters = row.get("parameters", [])
+    if isinstance(parameters, str):
+        parameters = json.loads(parameters)
+
     return TemplateMatch(
         template_id=str(row["id"]),
         task_pattern=row["task_pattern"],
-        steps=(
-            json.loads(row["steps"])
-            if isinstance(row["steps"], str)
-            else row["steps"]
-        ),
-        handoff_index=row["handoff_index"],
-        parameters=(
-            json.loads(row["parameters"])
-            if isinstance(row["parameters"], str)
-            else row["parameters"]
-        ),
+        steps=steps,
+        handoff_index=row.get("handoff_index", 0),
+        parameters=parameters,
         similarity=similarity,
-        confidence=float(row["confidence"]),
+        confidence=float(row.get("confidence", 0.5)),
         confidence_band=band,
-        domain=row["domain"],
-        action_type=row["action_type"],
+        domain=row.get("domain", domain),
+        action_type=row.get("action_type", action_type or "unknown"),
     )

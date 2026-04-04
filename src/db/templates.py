@@ -5,10 +5,19 @@ for task_templates in Supabase.
 """
 
 import json
+import os
 from typing import Any
 
-from .client import get_pg_pool
 from .embeddings import generate_embedding
+
+
+def _get_supabase():
+    """Get Supabase REST client (works through campus network, unlike direct PG)."""
+    from supabase import create_client
+    return create_client(
+        os.environ.get("SUPABASE_URL", ""),
+        os.environ.get("SUPABASE_SERVICE_ROLE_KEY", ""),
+    )
 
 
 async def create_template(
@@ -24,27 +33,19 @@ async def create_template(
     Returns the UUID of the created template.
     """
     embedding = generate_embedding(task_pattern)
-    embedding_str = json.dumps(embedding)
 
-    pool = await get_pg_pool()
-    async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            """
-            INSERT INTO task_templates
-                (domain, action_type, task_pattern, parameters, steps,
-                 handoff_index, embedding)
-            VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6, $7::vector)
-            RETURNING id
-            """,
-            domain,
-            action_type,
-            task_pattern,
-            json.dumps(parameters),
-            json.dumps(steps),
-            handoff_index,
-            embedding_str,
-        )
-        return str(row["id"])
+    client = _get_supabase()
+    result = client.table("task_templates").insert({
+        "domain": domain,
+        "action_type": action_type,
+        "task_pattern": task_pattern,
+        "parameters": parameters,
+        "steps": steps,
+        "handoff_index": handoff_index,
+        "embedding": json.dumps(embedding),
+    }).execute()
+
+    return str(result.data[0]["id"])
 
 
 async def get_template_by_id(template_id: str) -> dict[str, Any] | None:

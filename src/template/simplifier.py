@@ -14,8 +14,11 @@ from __future__ import annotations
 
 import hashlib
 import time
+import logging
 from dataclasses import asdict, dataclass, field
 from typing import Any, Optional
+
+logger = logging.getLogger(__name__)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -113,7 +116,7 @@ def simplify_trace(
 
     for i, entry in enumerate(history.history):
         model_output = entry.model_output
-        result = entry.result
+        result = entry.result  # list[ActionResult] in v0.12+
         state = entry.state
 
         if model_output is None:
@@ -121,7 +124,7 @@ def simplify_trace(
 
         # Each step can have multiple actions (max_actions_per_step)
         actions = _extract_actions(model_output)
-        for action_name, action_params in actions:
+        for j, (action_name, action_params) in enumerate(actions):
             # Extract element info for click/input actions
             element_desc = None
             element_attrs = None
@@ -133,17 +136,37 @@ def simplify_trace(
                 "upload_file",
             ):
                 element_index = action_params.get("index")
-                if element_index is not None and state and hasattr(state, "element_tree"):
-                    element_desc, element_attrs = _extract_element_info(
-                        state.element_tree, element_index
-                    )
+                # Try interacted_element from state (v0.12+)
+                if element_index is not None and state:
+                    interacted = getattr(state, "interacted_element", None)
+                    if interacted and j < len(interacted) and interacted[j] is not None:
+                        ie = interacted[j]
+                        element_desc = getattr(ie, "description", None)
+                        element_attrs = {}
+                        for attr in ("tag_name", "id", "class_name", "aria_label", "text", "href"):
+                            v = getattr(ie, attr, None)
+                            if v:
+                                element_attrs[attr] = v
+                    # Fallback to element_tree if available
+                    elif hasattr(state, "element_tree") and state.element_tree:
+                        element_desc, element_attrs = _extract_element_info(
+                            state.element_tree, element_index
+                        )
 
-            step_success = result is not None and (
-                not hasattr(result, "error") or result.error is None
-            )
+            # result is a list[ActionResult] — match by index j
+            action_result = result[j] if isinstance(result, list) and j < len(result) else result
+            step_success = True
             step_error = None
-            if result and hasattr(result, "error") and result.error:
-                step_error = str(result.error)
+            if action_result is not None:
+                if isinstance(action_result, list):
+                    step_success = all(
+                        not getattr(r, "error", None) for r in action_result
+                    )
+                    errors = [str(r.error) for r in action_result if getattr(r, "error", None)]
+                    step_error = "; ".join(errors) if errors else None
+                elif hasattr(action_result, "error") and action_result.error:
+                    step_success = False
+                    step_error = str(action_result.error)
 
             raw_steps.append(
                 SimplifiedStep(
@@ -190,8 +213,8 @@ def _extract_actions(model_output: Any) -> list[tuple[str, dict[str, Any]]]:
     """Extract (action_name, params) pairs from a browser-use model output."""
     results: list[tuple[str, dict[str, Any]]] = []
 
-    # browser-use model_output has an .actions list of pydantic models
-    actions_list = getattr(model_output, "actions", None)
+    # browser-use model_output: .action (v0.12+) or .actions (older versions)
+    actions_list = getattr(model_output, "action", None) or getattr(model_output, "actions", None)
     if actions_list is None:
         return results
 
@@ -204,16 +227,26 @@ def _extract_actions(model_output: Any) -> list[tuple[str, dict[str, Any]]]:
     return results
 
 
+def _unwrap_action(action: Any) -> Any:
+    """Unwrap browser-use v0.12+ ActionModel(root=XxxActionModel(...)) wrapper."""
+    root = getattr(action, "root", None)
+    if root is not None and root is not action:
+        return root
+    return action
+
+
 def _get_action_name(action: Any) -> str:
     """Extract the action name from a browser-use ActionModel."""
-    # browser-use actions are pydantic models with one non-None field
-    if hasattr(action, "model_fields"):
-        for field_name in action.model_fields:
-            if getattr(action, field_name, None) is not None:
+    # v0.12+: ActionModel wraps the real model via .root
+    inner = _unwrap_action(action)
+
+    if hasattr(inner, "model_fields"):
+        for field_name in inner.model_fields:
+            if getattr(inner, field_name, None) is not None:
                 return field_name
     # Fallback: try dict-like access
-    if isinstance(action, dict):
-        for k, v in action.items():
+    if isinstance(inner, dict):
+        for k, v in inner.items():
             if v is not None:
                 return k
     return "unknown"
@@ -221,9 +254,11 @@ def _get_action_name(action: Any) -> str:
 
 def _get_action_params(action: Any) -> dict[str, Any]:
     """Extract the action parameters as a plain dict."""
-    if hasattr(action, "model_fields"):
-        for field_name in action.model_fields:
-            value = getattr(action, field_name, None)
+    inner = _unwrap_action(action)
+
+    if hasattr(inner, "model_fields"):
+        for field_name in inner.model_fields:
+            value = getattr(inner, field_name, None)
             if value is not None:
                 if hasattr(value, "model_dump"):
                     return value.model_dump()
@@ -231,8 +266,8 @@ def _get_action_params(action: Any) -> dict[str, Any]:
                     return value
                 else:
                     return {"value": value}
-    if isinstance(action, dict):
-        for k, v in action.items():
+    if isinstance(inner, dict):
+        for k, v in inner.items():
             if v is not None:
                 if isinstance(v, dict):
                     return v
