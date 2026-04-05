@@ -126,11 +126,12 @@ async def _execute_step(page: Page, step: TemplateStep, step_index: int) -> None
     except RocketAbortError:
         raise
     except PlaywrightTimeout:
-        raise RocketAbortError(
-            step_index,
-            step,
-            f"Timeout after {step.timeout_ms}ms on selector '{step.selector}'",
-        )
+        if step.action == "navigate":
+            target = step.value or step.url or "unknown URL"
+            msg = f"Timeout after {step.timeout_ms}ms navigating to '{target}'"
+        else:
+            msg = f"Timeout after {step.timeout_ms}ms on selector '{step.selector}'"
+        raise RocketAbortError(step_index, step, msg)
     except Exception as e:
         raise RocketAbortError(step_index, step, str(e))
 

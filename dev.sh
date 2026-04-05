@@ -11,6 +11,7 @@ sleep 0.5
 echo "🚀 Starting backend (port 8000)..."
 cd "$(dirname "$0")"
 source .venv/bin/activate
+export NODE_OPTIONS="--no-deprecation"
 uvicorn src.api:app --host 0.0.0.0 --port 8000 &
 BACKEND_PID=$!
 

@@ -4,12 +4,16 @@ export type Phase = 'idle' | 'rocket' | 'agent' | 'complete' | 'error' | 'learni
 
 export type StepType = 'playwright' | 'agent';
 
+export type ActionType = 'navigate' | 'click' | 'fill' | 'press' | 'extract' | 'search_web' | 'scroll' | 'done' | 'template_match' | 'agent_action';
+
 export interface Step {
   id: string;
   description: string;
   type: StepType;
   timestamp: number;
   durationMs?: number;
+  action_type?: ActionType;
+  details?: Record<string, any>;
 }
 
 export interface RunStatus {
@@ -21,6 +25,17 @@ export interface RunStatus {
   live_url: string | null;
   duration_ms: number;
   error?: string;
+  mode_used?: 'rocket' | 'baseline_learn';
+  template_match?: { similarity: number; domain: string; task_pattern: string };
+  task?: string;
+}
+
+export interface ChatSessionSummary {
+  session_id: string;
+  task: string;
+  status: string;
+  mode_used: 'rocket' | 'baseline_learn' | null;
+  duration_ms: number;
 }
 
 export interface Template {

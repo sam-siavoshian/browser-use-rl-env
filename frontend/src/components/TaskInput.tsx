@@ -54,7 +54,7 @@ export function TaskInput({ onRun, onLearn, isRunning, onStop, compact }: TaskIn
   }
 
   return (
-    <div className="w-full max-w-[520px] flex flex-col items-stretch gap-5">
+    <div className="w-full max-w-[520px] flex flex-col items-stretch gap-5" data-task-input>
       <form onSubmit={handleSubmit} className="w-full">
         <div className="relative group">
           <div className="absolute -inset-px rounded-2xl bg-gradient-to-b from-lime/[0.04] to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />

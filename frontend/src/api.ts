@@ -1,4 +1,4 @@
-import type { RunStatus, Template } from './types';
+import type { RunStatus, Template, ChatSessionSummary } from './types';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000/api';
 
@@ -76,5 +76,22 @@ export async function searchTemplate(task: string): Promise<TemplateSearchResult
 export async function getTemplates(): Promise<Template[]> {
   const res = await fetch(`${API_BASE}/templates`);
   if (!res.ok) throw new Error(`Failed to get templates: ${await res.text()}`);
+  return res.json();
+}
+
+export async function startChat(task: string): Promise<string> {
+  const res = await fetch(`${API_BASE}/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ task }),
+  });
+  if (!res.ok) throw new Error(`Failed to start chat: ${await res.text()}`);
+  const data = await res.json();
+  return data.session_id;
+}
+
+export async function getChatSessions(): Promise<ChatSessionSummary[]> {
+  const res = await fetch(`${API_BASE}/chat/sessions`);
+  if (!res.ok) return [];
   return res.json();
 }

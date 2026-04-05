@@ -6,33 +6,33 @@ export type ExampleTask = {
 
 export const EXAMPLE_TASKS: ExampleTask[] = [
   {
-    id: 'wiki',
-    label: 'Wikipedia intro',
+    id: 'amazon-search',
+    label: 'Amazon product search',
     task:
-      "Search Wikipedia for 'Photosynthesis', open the article, and tell me the first sentence of the introduction.",
+      'Go to amazon.com, search for "wireless noise cancelling headphones", sort by price low to high, and report the name, price, and rating of the first result.',
   },
   {
-    id: 'gh-trending',
-    label: 'GitHub trending',
+    id: 'wiki-compare',
+    label: 'Wikipedia deep lookup',
     task:
-      'Go to github.com/trending, pick the first Python repository in the list, and report its name and star count.',
+      "Go to wikipedia.org, search for 'Python programming language', open the article, scroll to the 'History' section, and tell me who created Python and in what year.",
   },
   {
-    id: 'weather',
-    label: 'Weather snapshot',
+    id: 'hn-story',
+    label: 'Hacker News deep dive',
     task:
-      "Open weather.gov, search for the forecast for Denver, CO, and report today's high temperature.",
+      'Go to news.ycombinator.com, click on the top story on the front page, then extract the title, the URL it links to, and the top 3 comments.',
   },
   {
-    id: 'recipe',
-    label: 'Recipe search',
+    id: 'github-repo',
+    label: 'GitHub repo stats',
     task:
-      'On allrecipes.com, search for banana bread, open the first result, and list the total time and rating.',
+      'Go to github.com, search for "fastapi", open the first repository result, and report its star count, latest release version, and the description.',
   },
   {
-    id: 'hn-ask',
-    label: 'Ask HN top post',
+    id: 'recipe-details',
+    label: 'Recipe ingredients',
     task:
-      'Go to news.ycombinator.com/ask, open the top post, and summarize the question in one sentence.',
+      'Go to allrecipes.com, search for "chocolate chip cookies", open the first result, and list all the ingredients and the total prep time.',
   },
 ];

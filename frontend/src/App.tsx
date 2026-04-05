@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { BrainIcon, ZapIcon } from 'lucide-animated';
 import { AppSidebar, MobileTopBar } from './components/AppSidebar';
 import { TaskInput } from './components/TaskInput';
 import { BrowserEmbed } from './components/BrowserEmbed';
@@ -11,19 +12,25 @@ import { TemplateSearchCard } from './components/TemplateSearchCard';
 import { Analogy } from './components/Analogy';
 import { Architecture } from './components/Architecture';
 import { LearningHistory } from './components/LearningHistory';
+import { ChatPage } from './pages/ChatPage';
 import { usePoller } from './hooks/usePoller';
 import { useTimer } from './hooks/useTimer';
 import { startCompare, startLearn, getTemplates } from './api';
 import type { Template, Phase } from './types';
 
-type View = 'idle' | 'learning' | 'racing' | 'results';
+type View = 'chat' | 'chat_session' | 'learning' | 'racing' | 'results';
 
 function pathToView(pathname: string): View {
   const p = pathname.replace(/\/+$/, '') || '/';
+  if (p.startsWith('/chat/')) return 'chat_session';
+  if (p === '/rl/learn') return 'learning';
+  if (p === '/rl/race') return 'racing';
+  if (p === '/rl/results') return 'results';
+  // Legacy routes
   if (p === '/learn') return 'learning';
   if (p === '/race') return 'racing';
   if (p === '/results') return 'results';
-  return 'idle';
+  return 'chat';
 }
 
 function App() {
@@ -68,22 +75,11 @@ function App() {
     }
   }, [baseStatus?.status, rocketStatus?.status, navigate]);
 
-  useEffect(() => {
-    if (view === 'learning' && !learnId && !learnStarting) {
-      navigate('/', { replace: true });
-    }
-  }, [view, learnId, learnStarting, navigate]);
-
-  useEffect(() => {
-    if (view === 'racing' && !baselineId && !raceStarting) {
-      navigate('/', { replace: true });
-    }
-  }, [view, baselineId, raceStarting, navigate]);
 
   useEffect(() => {
     const p = location.pathname.replace(/\/+$/, '') || '/';
-    const allowed = ['/', '/learn', '/race', '/results'];
-    if (!allowed.includes(p)) {
+    const allowed = ['/', '/learn', '/race', '/results', '/rl/learn', '/rl/race', '/rl/results'];
+    if (!allowed.includes(p) && !p.startsWith('/chat/')) {
       navigate('/', { replace: true });
     }
   }, [location.pathname, navigate]);
@@ -153,6 +149,7 @@ function App() {
   const isRunning = view === 'racing' || view === 'learning';
   const liveSpeedup = baseTimer.elapsedMs > 2000 && rocketTimer.elapsedMs > 200
     ? baseTimer.elapsedMs / rocketTimer.elapsedMs : null;
+  const isChatView = view === 'chat' || view === 'chat_session';
 
   return (
     <div className="h-screen min-h-0 flex flex-col md:flex-row" style={{ background: '#09090b' }}>
@@ -166,7 +163,7 @@ function App() {
       />
 
       {/* Main content area */}
-      <div className={`flex-1 min-w-0 flex flex-col relative ${view === 'idle' ? 'overflow-y-auto' : 'overflow-hidden'}`}>
+      <div className={`flex-1 min-w-0 flex flex-col relative ${view === 'chat' ? 'overflow-y-auto' : 'overflow-hidden'}`}>
         {/* Mobile top bar */}
         <MobileTopBar onToggle={() => setSidebarOpen(!sidebarOpen)} />
 
@@ -176,7 +173,14 @@ function App() {
             style={{ background: 'radial-gradient(circle, rgba(200,255,0,0.02) 0%, transparent 65%)' }} />
         </div>
 
-        {/* ═══ IDLE VIEW ═══ */}
+        {/* ═══ CHAT VIEW (main product) ═══ */}
+        {isChatView && (
+          <div className="flex-1 flex flex-col relative z-10">
+            <ChatPage />
+          </div>
+        )}
+
+        {/* ═══ RL: IDLE VIEW (legacy landing) ═══ */}
         {view === 'idle' && (
           <div className="flex-1 flex flex-col relative z-10">
             <div className="flex-1 flex flex-col items-center justify-start px-6 pt-12 sm:pt-16 pb-20 relative z-10">
@@ -231,7 +235,101 @@ function App() {
         )}
 
         {/* ═══ LEARNING VIEW ═══ */}
-        {view === 'learning' && (
+        {view === 'learning' && !learnId && !learnStarting && (
+          <div className="flex-1 flex flex-col relative z-10 overflow-y-auto">
+            <div className="flex flex-col items-center px-6 pt-12 pb-20">
+              {/* Header */}
+              <div className="text-center mb-8 anim-fade-up">
+                <div className="w-12 h-12 rounded-2xl bg-amber-400/10 flex items-center justify-center mx-auto mb-5">
+                  <BrainIcon size={22} className="text-amber-400" />
+                </div>
+                <h2 className="text-[28px] font-serif italic text-text mb-3">Teach a new task</h2>
+                <p className="text-[14px] text-text-dim leading-relaxed max-w-[420px] mx-auto">
+                  The agent will run the task, record every step, and extract a reusable template for future rockets.
+                </p>
+              </div>
+
+              {/* Learn-only input */}
+              <div className="w-full max-w-[520px] mb-12 anim-fade-up" style={{ animationDelay: '60ms' }}>
+                <TaskInput onRun={(task) => learn(task)} isRunning={false} />
+              </div>
+
+              {/* Learned templates */}
+              {templates.length > 0 && (
+                <div className="w-full max-w-2xl anim-fade-up" style={{ animationDelay: '120ms' }}>
+                  <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-text-muted mb-4 text-center">
+                    {templates.length} template{templates.length !== 1 ? 's' : ''} learned
+                  </p>
+                  <div className="flex flex-col gap-2">
+                    {templates.map((t) => (
+                      <div
+                        key={t.id}
+                        className="saas-card p-4 flex items-start gap-4"
+                      >
+                        <div className="w-9 h-9 rounded-xl bg-surface flex items-center justify-center shrink-0 border border-border">
+                          <img
+                            src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(t.domain)}&sz=32`}
+                            alt=""
+                            width={18}
+                            height={18}
+                            className="rounded-sm"
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-[13px] font-medium text-text truncate">{t.domain}</span>
+                            <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-md ${
+                              t.confidence >= 0.9
+                                ? 'bg-lime/10 text-lime'
+                                : t.confidence >= 0.5
+                                ? 'bg-amber-400/10 text-amber-400'
+                                : 'bg-red-400/10 text-red-400'
+                            }`}>
+                              {(t.confidence * 100).toFixed(0)}%
+                            </span>
+                          </div>
+                          <p className="text-[12px] text-text-dim truncate">{t.pattern}</p>
+                          {t.steps && t.steps.length > 0 && (
+                            <div className="flex items-center gap-1.5 mt-2">
+                              {t.steps.slice(0, 8).map((step, i) => (
+                                <div
+                                  key={step.id}
+                                  className={`w-1.5 h-1.5 rounded-full ${
+                                    step.type === 'fixed' ? 'bg-lime/60' :
+                                    step.type === 'parameterized' ? 'bg-amber-400/60' :
+                                    'bg-sky-400/60'
+                                  }`}
+                                  title={`${step.type}: ${step.description}`}
+                                />
+                              ))}
+                              {t.steps.length > 8 && (
+                                <span className="text-[9px] text-text-muted">+{t.steps.length - 8}</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-text-muted font-mono shrink-0">
+                          {t.uses} run{t.uses !== 1 ? 's' : ''}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {templates.length === 0 && (
+                <div className="text-center anim-fade-up" style={{ animationDelay: '120ms' }}>
+                  <div className="saas-inset-sm px-8 py-6 rounded-2xl">
+                    <p className="text-[13px] text-text-dim mb-1">No templates yet</p>
+                    <p className="text-[12px] text-text-muted">Enter a task above to teach the system its first trick.</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+        {view === 'learning' && (learnId || learnStarting) && (
           <div className="flex-1 flex flex-col min-h-0 relative z-10 anim-fade-in">
             <header className="flex-shrink-0 flex items-center gap-4 px-5 h-12 border-b border-border-subtle bg-surface/30 backdrop-blur-sm">
               <div className="flex items-center gap-2.5 flex-shrink-0">
@@ -288,7 +386,33 @@ function App() {
         )}
 
         {/* ═══ RACING VIEW ═══ */}
-        {view === 'racing' && (
+        {view === 'racing' && !baselineId && !raceStarting && (
+          <div className="flex-1 flex flex-col items-center justify-center relative z-10 px-6 anim-fade-in">
+            <div className="text-center max-w-md">
+              <div className="w-12 h-12 rounded-2xl bg-lime/10 flex items-center justify-center mx-auto mb-5">
+                <ZapIcon size={22} className="text-lime" />
+              </div>
+              <h2 className="text-[22px] font-serif italic text-text mb-3">Race a task</h2>
+              <p className="text-[14px] text-text-dim leading-relaxed mb-8">
+                Enter a task similar to one you've already learned. The system will match it to a template and race Playwright against a vanilla agent.
+              </p>
+              <div className="w-full max-w-[520px] mx-auto">
+                <TaskInput onRun={launch} isRunning={false} />
+                {searchingTask && (
+                  <div className="mt-4">
+                    <TemplateSearchCard
+                      task={searchingTask}
+                      onRace={startRace}
+                      onLearnInstead={() => learn(searchingTask)}
+                      onDismiss={() => setSearchingTask(null)}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+        {view === 'racing' && (baselineId || raceStarting) && (
           <div className="flex-1 flex flex-col min-h-0 relative z-10 anim-fade-in">
             <header className="flex-shrink-0 flex items-center gap-4 px-5 h-12 border-b border-border-subtle bg-surface/30 backdrop-blur-sm">
               <div className="flex items-center gap-2.5 flex-shrink-0">

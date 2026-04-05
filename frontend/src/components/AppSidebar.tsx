@@ -21,10 +21,9 @@ interface AppSidebarProps {
   onCollapse: (collapsed: boolean) => void;
 }
 
-const NAV_ITEMS = [
-  { path: '/', label: 'Home', icon: HomeIcon },
-  { path: '/learn', label: 'Learn', icon: BrainIcon },
-  { path: '/race', label: 'Race', icon: ZapIcon },
+const RL_NAV_ITEMS = [
+  { path: '/rl/learn', label: 'Learn', icon: BrainIcon },
+  { path: '/rl/race', label: 'Race', icon: ZapIcon },
 ] as const;
 
 export function AppSidebar({ templates, sidebarOpen, onToggle, collapsed, onCollapse }: AppSidebarProps) {
@@ -48,10 +47,13 @@ export function AppSidebar({ templates, sidebarOpen, onToggle, collapsed, onColl
         className={`
           fixed md:relative z-50 h-screen flex flex-col
           bg-sidebar border-r border-sidebar-border
-          transition-all duration-300 ease-out
+          will-change-transform
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
           ${collapsed ? 'w-[60px]' : 'w-[220px]'}
         `}
+        style={{
+          transition: 'transform 200ms cubic-bezier(0.25, 0.1, 0.25, 1), width 200ms cubic-bezier(0.25, 0.1, 0.25, 1)',
+        }}
       >
         {/* Header */}
         <div className={`flex items-center h-14 px-3 border-b border-sidebar-border ${collapsed ? 'justify-center' : 'justify-between'}`}>
@@ -84,8 +86,29 @@ export function AppSidebar({ templates, sidebarOpen, onToggle, collapsed, onColl
 
         {/* Navigation */}
         <nav className={`flex-1 flex flex-col gap-1 py-3 ${collapsed ? 'px-2' : 'px-3'}`}>
-          {NAV_ITEMS.map(({ path, label, icon: Icon }) => {
-            const active = currentPath === path;
+          {/* New Chat button */}
+          <button
+            onClick={() => { navigate('/'); if (sidebarOpen) onToggle(); }}
+            className={`sidebar-nav-item ${collapsed ? 'justify-center px-0' : ''} ${
+              currentPath === '/' ? 'active' : ''
+            }`}
+            title={collapsed ? 'New Chat' : undefined}
+          >
+            <HomeIcon size={16} className={currentPath === '/' ? 'text-lime' : ''} />
+            {!collapsed && <span>New Chat</span>}
+          </button>
+
+          {/* Divider */}
+          <div className={`h-px bg-sidebar-border my-2 ${collapsed ? 'mx-1' : 'mx-1'}`} />
+
+          {/* RL Training section */}
+          {!collapsed && (
+            <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-text-muted px-3 py-1">
+              RL Training
+            </p>
+          )}
+          {RL_NAV_ITEMS.map(({ path, label, icon: Icon }) => {
+            const active = currentPath === path || currentPath === path.replace('/rl', '');
             return (
               <button
                 key={path}
@@ -140,7 +163,7 @@ export function AppSidebar({ templates, sidebarOpen, onToggle, collapsed, onColl
                         </button>
 
                         {/* Expanded step list */}
-                        {isExpanded && t.steps.length > 0 && (
+                        {isExpanded && t.steps && t.steps.length > 0 && (
                           <div
                             className="mx-2 mb-1 mt-0.5 rounded-xl overflow-hidden"
                             style={{
@@ -169,7 +192,7 @@ export function AppSidebar({ templates, sidebarOpen, onToggle, collapsed, onColl
                             ))}
                           </div>
                         )}
-                        {isExpanded && t.steps.length === 0 && (
+                        {isExpanded && (!t.steps || t.steps.length === 0) && (
                           <p className="text-[10px] text-text-muted/40 px-5 py-1.5">No steps recorded</p>
                         )}
                       </div>

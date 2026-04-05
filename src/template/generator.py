@@ -183,7 +183,7 @@ def template_to_db_format(template: InternalTemplate) -> dict[str, Any]:
             "index": step.index,
             "type": step.classification.lower(),  # FIXED -> fixed
             "action": step.action,
-            "timeout_ms": step.wait_after_ms,
+            "timeout_ms": _action_timeout_ms(step.action),
             "on_failure": "try_fallback" if step.retry_on_failure else "abort",
         }
 
@@ -268,3 +268,24 @@ def _infer_wait_time(action: str) -> int:
         "scroll": 300,
     }
     return wait_map.get(action, 100)
+
+
+def _action_timeout_ms(action: str) -> int:
+    """Playwright timeout for executing the action (NOT the post-action wait).
+
+    Navigate needs the most time since it waits for domcontentloaded.
+    Selector-based actions need enough time for elements to appear.
+    """
+    timeout_map = {
+        "navigate": 15000,
+        "click": 5000,
+        "fill": 5000,
+        "input": 5000,
+        "press": 3000,
+        "send_keys": 3000,
+        "wait": 5000,
+        "scroll": 2000,
+        "select_dropdown": 5000,
+        "go_back": 10000,
+    }
+    return timeout_map.get(action, 5000)
