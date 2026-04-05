@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { ActionCard } from './ActionCard';
+import { AgentResultMarkdown } from './AgentResultMarkdown';
 import { ShiningText } from '../ui/shining-text';
 import type { Step } from '../../types';
 
@@ -18,8 +19,8 @@ export function ActionFeed({ steps, isRunning, agentResult, isComplete }: Action
   }, [steps.length, agentResult]);
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto py-3">
+    <div className="flex flex-col h-full min-h-0">
+      <div className="flex-1 min-h-0 overflow-y-auto py-3 overscroll-contain">
         {steps.length === 0 && isRunning && (
           <div className="flex items-center gap-3 px-6 py-4"
                style={{ animation: 'fade-in 0.3s ease both' }}>
@@ -83,10 +84,8 @@ export function ActionFeed({ steps, isRunning, agentResult, isComplete }: Action
                   Result
                 </span>
               </div>
-              {/* Content */}
-              <div className="text-[13px] text-text/90 leading-[1.7] whitespace-pre-wrap break-words">
-                {agentResult}
-              </div>
+              {/* Content — markdown: **bold**, *italic*, lists, blockquotes, code, tables, links */}
+              <AgentResultMarkdown content={agentResult} />
             </div>
           </div>
         )}

@@ -1,5 +1,6 @@
+import { useRef } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { XIcon } from 'lucide-animated';
+import { FileTextIcon, HomeIcon, XIcon, type FileTextIconHandle, type HomeIconHandle } from 'lucide-animated';
 import { DOCS_NAV } from '../../docs/constants';
 
 interface DocsSidebarProps {
@@ -7,8 +8,37 @@ interface DocsSidebarProps {
   onMobileClose: () => void;
 }
 
+function DocsNavRow({
+  path,
+  label,
+  onMobileClose,
+}: {
+  path: string;
+  label: string;
+  onMobileClose: () => void;
+}) {
+  const iconRef = useRef<FileTextIconHandle>(null);
+  return (
+    <NavLink
+      to={path}
+      onClick={onMobileClose}
+      onMouseEnter={() => iconRef.current?.startAnimation()}
+      onMouseLeave={() => iconRef.current?.stopAnimation()}
+      className={({ isActive }) => `sidebar-nav-item ${isActive ? 'active' : ''}`}
+    >
+      {({ isActive }) => (
+        <>
+          <FileTextIcon ref={iconRef} size={16} className={`shrink-0 ${isActive ? 'text-lime' : ''}`} />
+          <span>{label}</span>
+        </>
+      )}
+    </NavLink>
+  );
+}
+
 export function DocsSidebar({ mobileOpen, onMobileClose }: DocsSidebarProps) {
   const navigate = useNavigate();
+  const backIconRef = useRef<HomeIconHandle>(null);
 
   return (
     <>
@@ -22,7 +52,8 @@ export function DocsSidebar({ mobileOpen, onMobileClose }: DocsSidebarProps) {
 
       <aside
         className={`
-          fixed md:relative z-50 h-screen md:h-full md:min-h-0 flex flex-col
+          fixed md:relative z-50 h-full min-h-0 flex flex-col
+          inset-y-0 md:inset-y-auto
           bg-sidebar border-r border-sidebar-border
           will-change-transform
           w-[220px] shrink-0
@@ -41,7 +72,7 @@ export function DocsSidebar({ mobileOpen, onMobileClose }: DocsSidebarProps) {
           <button
             type="button"
             onClick={onMobileClose}
-            className="md:hidden ml-auto w-7 h-7 flex items-center justify-center rounded-lg text-text-muted hover:text-text shrink-0"
+            className="md:hidden ml-auto w-7 h-7 flex items-center justify-center rounded-lg text-text-muted hover:text-text shrink-0 cursor-pointer"
             aria-label="Close menu"
           >
             <XIcon size={14} />
@@ -54,16 +85,7 @@ export function DocsSidebar({ mobileOpen, onMobileClose }: DocsSidebarProps) {
           </p>
 
           {DOCS_NAV.map(({ path, label }) => (
-            <NavLink
-              key={path}
-              to={path}
-              onClick={onMobileClose}
-              className={({ isActive }) =>
-                `sidebar-nav-item ${isActive ? 'active' : ''}`
-              }
-            >
-              {label}
-            </NavLink>
+            <DocsNavRow key={path} path={path} label={label} onMobileClose={onMobileClose} />
           ))}
         </nav>
 
@@ -74,9 +96,12 @@ export function DocsSidebar({ mobileOpen, onMobileClose }: DocsSidebarProps) {
               navigate('/');
               onMobileClose();
             }}
+            onMouseEnter={() => backIconRef.current?.startAnimation()}
+            onMouseLeave={() => backIconRef.current?.stopAnimation()}
             className="sidebar-nav-item w-full text-left"
           >
-            Back to app
+            <HomeIcon ref={backIconRef} size={16} className="shrink-0" />
+            <span>Back to app</span>
           </button>
           <p className="text-[10px] font-mono text-text-muted/80 px-3 pt-3">⌘K search</p>
         </div>

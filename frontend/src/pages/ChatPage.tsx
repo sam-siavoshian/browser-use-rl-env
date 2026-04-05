@@ -8,8 +8,8 @@ import { PixelBackground } from '../components/PixelBackground';
 import { BrowserEmbed } from '../components/BrowserEmbed';
 import { usePoller } from '../hooks/usePoller';
 import { useTimer } from '../hooks/useTimer';
+import { ExamplePillGrid } from '../components/ExamplePillGrid';
 import { startChat } from '../api';
-import { EXAMPLE_TASKS } from '../data/exampleTasks';
 import type { Phase } from '../types';
 
 export function ChatPage() {
@@ -84,10 +84,10 @@ export function ChatPage() {
               className="text-[48px] sm:text-[56px] leading-[1.05] tracking-[-0.03em] text-text"
               style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic' }}
             >
-              What should I do?
+              What do you want to learn?
             </h1>
             <p className="text-[14px] text-text-dim mt-4 max-w-[440px] mx-auto leading-[1.7]">
-              Describe a browser task. If I&apos;ve seen it before, I&apos;ll be fast.
+              Describe a flow or site to explore in the browser. If I&apos;ve learned it before, I&apos;ll be fast.
             </p>
           </div>
 
@@ -99,37 +99,8 @@ export function ChatPage() {
             <ChatInput onSubmit={handleSubmit} />
           </div>
 
-          {/* Example chips */}
-          <div
-            className="flex flex-wrap justify-center gap-2 pointer-events-auto"
-            style={{ animation: 'fade-up 0.5s cubic-bezier(0.16,1,0.3,1) 160ms both' }}
-          >
-            {EXAMPLE_TASKS.map((ex) => (
-              <button
-                key={ex.id}
-                type="button"
-                onClick={() => handleSubmit(ex.task)}
-                className="group px-3.5 py-2 rounded-xl text-[12px] text-text-dim
-                           transition-all duration-200 cursor-pointer"
-                style={{
-                  background: 'rgba(255,255,255,0.02)',
-                  border: '1px solid rgba(255,255,255,0.06)',
-                  boxShadow: 'inset 0 2px 6px rgba(0,0,0,0.2), 0 1px 0 rgba(255,255,255,0.02)',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'rgba(200,255,0,0.04)';
-                  e.currentTarget.style.borderColor = 'rgba(200,255,0,0.15)';
-                  e.currentTarget.style.color = 'var(--color-text)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.02)';
-                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)';
-                  e.currentTarget.style.color = '';
-                }}
-              >
-                {ex.label}
-              </button>
-            ))}
+          <div className="w-full max-w-[580px] mx-auto pointer-events-auto" style={{ animation: 'fade-up 0.5s cubic-bezier(0.16,1,0.3,1) 160ms both' }}>
+            <ExamplePillGrid onPick={(task) => void handleSubmit(task)} animBaseMs={180} />
           </div>
 
           {/* Keyboard hint */}
@@ -144,11 +115,11 @@ export function ChatPage() {
 
   // ═══ SESSION STATE ═══
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex-1 flex min-h-0">
+    <div className="flex flex-col h-full min-h-0 overflow-hidden">
+      <div className="flex-1 flex min-h-0 overflow-hidden">
         {/* Left: Action feed */}
         <div
-          className="w-[400px] shrink-0 flex flex-col"
+          className="w-[400px] shrink-0 flex flex-col min-h-0 overflow-hidden"
           style={{
             background: 'rgba(0,0,0,0.15)',
             borderRight: '1px solid var(--color-border)',
@@ -186,10 +157,10 @@ export function ChatPage() {
           </div>
         </div>
 
-        {/* Right: Browser embed */}
-        <div className="flex-1 flex flex-col min-w-0 bg-bg">
-          <div className="flex-1 p-3">
-            <BrowserEmbed liveUrl={liveUrl} phase={phase} />
+        {/* Right: Browser embed — fills column; no page-level scroll */}
+        <div className="flex-1 flex flex-col min-w-0 min-h-0 bg-bg overflow-hidden">
+          <div className="flex-1 flex flex-col min-h-0 p-3">
+            <BrowserEmbed liveUrl={liveUrl} phase={phase} fillHeight />
           </div>
         </div>
       </div>

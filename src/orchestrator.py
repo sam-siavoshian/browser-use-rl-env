@@ -235,6 +235,8 @@ class RocketOrchestrator:
         from browser_use import Agent, BrowserSession as BUSession
         from langchain_anthropic import ChatAnthropic
 
+        from src.browser.session_cleanup import release_browser_session
+
         bu_session = BUSession(
             cdp_url=browser_session.cdp_url,
             keep_alive=True,
@@ -251,7 +253,10 @@ class RocketOrchestrator:
             max_failures=5,
             max_actions_per_step=5,
         )
-        history = await agent.run()
+        try:
+            history = await agent.run()
+        finally:
+            await release_browser_session(bu_session)
         agent_duration_ms = _ms() - t0
 
         total_duration_ms = _ms() - t_total
@@ -362,6 +367,8 @@ class RocketOrchestrator:
         from browser_use import Agent, BrowserSession as BUSession
         from langchain_anthropic import ChatAnthropic
 
+        from src.browser.session_cleanup import release_browser_session
+
         bu_session = BUSession(
             cdp_url=browser_session.cdp_url,
             keep_alive=True,
@@ -378,7 +385,10 @@ class RocketOrchestrator:
             max_failures=5,
             max_actions_per_step=5,
         )
-        history = await agent.run()
+        try:
+            history = await agent.run()
+        finally:
+            await release_browser_session(bu_session)
         agent_duration_ms = _ms() - t0
 
         total_duration_ms = _ms() - t_total

@@ -5,9 +5,11 @@ import { LoadingPinwheel } from './LoadingPinwheel';
 interface BrowserEmbedProps {
   liveUrl: string | null;
   phase: Phase;
+  /** Grow to fill a flex column (e.g. chat session); default uses a fixed 16:10 frame. */
+  fillHeight?: boolean;
 }
 
-export function BrowserEmbed({ liveUrl, phase }: BrowserEmbedProps) {
+export function BrowserEmbed({ liveUrl, phase, fillHeight }: BrowserEmbedProps) {
   const active = phase === 'rocket' || phase === 'agent';
   const borderColor =
     phase === 'rocket' ? 'rgba(200,255,0,0.1)' :
@@ -17,7 +19,9 @@ export function BrowserEmbed({ liveUrl, phase }: BrowserEmbedProps) {
 
   return (
     <div
-      className="rounded-2xl overflow-hidden transition-colors duration-700"
+      className={`rounded-2xl overflow-hidden transition-colors duration-700 ${
+        fillHeight ? 'flex flex-col flex-1 min-h-0 h-full' : ''
+      }`}
       style={{
         background: '#080809',
         border: `1px solid ${borderColor}`,
@@ -34,13 +38,15 @@ export function BrowserEmbed({ liveUrl, phase }: BrowserEmbedProps) {
         )}
       </div>
 
-      <div className="aspect-[16/10] relative">
+      <div
+        className={fillHeight ? 'flex-1 min-h-0 relative' : 'aspect-[16/10] relative'}
+      >
         {liveUrl ? (
           <iframe
             src={liveUrl}
             sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
             allow="autoplay; clipboard-write"
-            className="w-full h-full border-0"
+            className={`border-0 ${fillHeight ? 'absolute inset-0 w-full h-full' : 'w-full h-full'}`}
             title="Browser view"
             referrerPolicy="no-referrer"
           />

@@ -8,6 +8,7 @@ import time
 from browser_use import Agent, BrowserSession
 from langchain_anthropic import ChatAnthropic
 
+from src.browser.session_cleanup import release_browser_session
 from src.models import AgentResult, RocketResult
 
 logger = logging.getLogger("rocket_booster.agent")
@@ -94,7 +95,11 @@ class BrowserUseAgent:
         logger.info("Agent starting: %s", agent_task[:120])
         start_time = time.monotonic()
 
-        result = await agent.run()
+        try:
+            result = await agent.run()
+        finally:
+            await release_browser_session(session)
+
         duration = time.monotonic() - start_time
 
         history = agent.history

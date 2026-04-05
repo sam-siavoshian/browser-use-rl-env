@@ -30,15 +30,29 @@
 
 /* ── Base ────────────────────────────── */
 
-html, body, #root {
+html, body {
   height: 100%;
   margin: 0;
+  overflow: hidden;
   background: var(--color-bg);
   color: var(--color-text);
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   letter-spacing: -0.015em;
+}
+
+/* Global UI scale (+20%). Pre-zoom height so zoomed layout matches viewport (no outer scroll). */
+#root {
+  height: calc(100vh / 1.2);
+  max-height: calc(100vh / 1.2);
+  height: calc(100dvh / 1.2);
+  max-height: calc(100dvh / 1.2);
+  zoom: 1.2;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 ::selection {
@@ -220,6 +234,7 @@ html, body, #root {
   font-size: 13px;
   font-weight: 500;
   color: var(--color-text-dim);
+  cursor: pointer;
   transition: background 0.1s ease, color 0.1s ease, box-shadow 0.1s ease;
 }
 

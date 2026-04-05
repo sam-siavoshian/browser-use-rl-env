@@ -206,8 +206,14 @@ async def _create_browser(session_id: str):
 
 
 async def _run_agent(session_id: str, task: str, cdp_url: str, rocket_steps_done: int = 0):
-    """Run the browser-use agent on the cloud browser. Returns (history, bu_session)."""
+    """Run the browser-use agent on the cloud browser. Returns (history, bu_session).
+
+    Always releases the CDP session in ``finally`` so browser-use does not try to
+    reconnect after the cloud browser is stopped (503/404 on WebSocket).
+    """
     from browser_use import Agent, BrowserSession as BUSession
+
+    from src.browser.session_cleanup import release_browser_session
 
     try:
         from browser_use import ChatAnthropic as BUChat
@@ -260,9 +266,11 @@ async def _run_agent(session_id: str, task: str, cdp_url: str, rocket_steps_done
         # already on the right page, re-navigating wastes ~8s.
         directly_open_url=rocket_steps_done == 0,
     )
-    history = await agent.run()
-
-    return history, bu_session
+    try:
+        history = await agent.run()
+        return history, bu_session
+    finally:
+        await release_browser_session(bu_session)
 
 
 def _extract_and_store_result(session_id: str, history) -> None:
@@ -345,11 +353,6 @@ async def _run_learn(session_id: str, task: str) -> None:
         _update(session_id, status="error", phase="error", duration_ms=elapsed, error=str(e), current_step=f"Error: {e}")
 
     finally:
-        if bu_session:
-            try:
-                await bu_session.close()
-            except Exception:
-                pass
         if mgr and browser:
             try:
                 await mgr.stop(browser.browser_id)
@@ -382,11 +385,6 @@ async def _run_baseline(session_id: str, task: str) -> None:
         _update(session_id, status="error", phase="error", duration_ms=elapsed, error=str(e), current_step=f"Error: {e}")
 
     finally:
-        if bu_session:
-            try:
-                await bu_session.close()
-            except Exception:
-                pass
         if mgr and browser:
             try:
                 await mgr.stop(browser.browser_id)
@@ -470,11 +468,6 @@ async def _run_rocket(session_id: str, task: str) -> None:
         _update(session_id, status="error", phase="error", duration_ms=elapsed, error=str(e), current_step=f"Error: {e}")
 
     finally:
-        if bu_session:
-            try:
-                await bu_session.close()
-            except Exception:
-                pass
         if mgr and browser:
             try:
                 await mgr.stop(browser.browser_id)
@@ -585,11 +578,6 @@ async def _run_chat(session_id: str, task: str) -> None:
         _update(session_id, status="error", phase="error", duration_ms=elapsed, error=str(e), current_step=f"Error: {e}")
 
     finally:
-        if bu_session:
-            try:
-                await bu_session.close()
-            except Exception:
-                pass
         if mgr and browser:
             try:
                 await mgr.stop(browser.browser_id)

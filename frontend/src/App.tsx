@@ -154,14 +154,14 @@ function App() {
   const isDocsView = location.pathname.startsWith('/docs');
   if (isDocsView) {
     return (
-      <div className="h-screen min-h-0 flex flex-col bg-bg">
+      <div className="h-full min-h-0 flex flex-col bg-bg">
         <DocsLayout />
       </div>
     );
   }
 
   return (
-    <div className="h-screen min-h-0 flex flex-col md:flex-row bg-bg">
+    <div className="h-full min-h-0 flex flex-col md:flex-row bg-bg">
       {/* Sidebar */}
       <AppSidebar
         templates={templates}
@@ -172,7 +172,7 @@ function App() {
       />
 
       {/* Main content area */}
-      <div className={`flex-1 min-w-0 flex flex-col relative ${view === 'chat' ? 'overflow-y-auto' : 'overflow-hidden'}`}>
+      <div className="flex-1 min-w-0 min-h-0 flex flex-col relative overflow-hidden">
         {/* Mobile top bar */}
         <MobileTopBar onToggle={() => setSidebarOpen(!sidebarOpen)} />
 
@@ -184,7 +184,7 @@ function App() {
 
         {/* ═══ CHAT VIEW (main product) ═══ */}
         {isChatView && (
-          <div className="flex-1 flex flex-col relative z-10">
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative z-10">
             <ChatPage />
           </div>
         )}
@@ -198,9 +198,10 @@ function App() {
                 <div className="w-12 h-12 rounded-2xl bg-amber-400/10 flex items-center justify-center mx-auto mb-5">
                   <BrainIcon size={22} className="text-amber-400" />
                 </div>
-                <h2 className="text-[28px] font-serif italic text-text mb-3">Teach a new task</h2>
+                <h2 className="text-[28px] font-serif italic text-text mb-3">What do you want to learn?</h2>
                 <p className="text-[14px] text-text-dim leading-relaxed max-w-[420px] mx-auto">
-                  The agent will run the task, record every step, and extract a reusable template for future rockets.
+                  Describe a site or flow to explore—the agent learns by doing: it records each step and turns the
+                  whole path into a playbook you can run again on similar pages.
                 </p>
               </div>
 
@@ -213,7 +214,7 @@ function App() {
               {templates.length > 0 && (
                 <div className="w-full max-w-2xl anim-fade-up" style={{ animationDelay: '120ms' }}>
                   <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-text-muted mb-4 text-center">
-                    {templates.length} template{templates.length !== 1 ? 's' : ''} learned
+                    {templates.length} learning{templates.length !== 1 ? 's' : ''} captured
                   </p>
                   <div className="flex flex-col gap-2">
                     {templates.map((t) => (
@@ -232,17 +233,8 @@ function App() {
                           />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-[13px] font-medium text-text truncate">{t.domain}</span>
-                            <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-md ${
-                              t.confidence >= 0.9
-                                ? 'bg-lime/10 text-lime'
-                                : t.confidence >= 0.5
-                                ? 'bg-amber-400/10 text-amber-400'
-                                : 'bg-red-400/10 text-red-400'
-                            }`}>
-                              {(t.confidence * 100).toFixed(0)}%
-                            </span>
+                          <div className="mb-1">
+                            <span className="text-[13px] font-medium text-text truncate block">{t.domain}</span>
                           </div>
                           <p className="text-[12px] text-text-dim truncate">{t.pattern}</p>
                           {t.steps && t.steps.length > 0 && (
@@ -276,8 +268,10 @@ function App() {
               {templates.length === 0 && (
                 <div className="text-center anim-fade-up" style={{ animationDelay: '120ms' }}>
                   <div className="saas-inset-sm px-8 py-6 rounded-2xl">
-                    <p className="text-[13px] text-text-dim mb-1">No templates yet</p>
-                    <p className="text-[12px] text-text-muted">Enter a task above to teach the system its first trick.</p>
+                    <p className="text-[13px] text-text-dim mb-1">Nothing captured yet</p>
+                    <p className="text-[12px] text-text-muted">
+                      Describe something you want to learn above—the first run becomes your first saved playbook.
+                    </p>
                   </div>
                 </div>
               )}

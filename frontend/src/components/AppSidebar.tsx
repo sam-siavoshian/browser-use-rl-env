@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   RocketIcon,
@@ -11,6 +11,11 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   FileTextIcon,
+  type HomeIconHandle,
+  type BrainIconHandle,
+  type ZapIconHandle,
+  type FileTextIconHandle,
+  type LayersIconHandle,
 } from 'lucide-animated';
 import type { Template } from '../types';
 
@@ -22,16 +27,17 @@ interface AppSidebarProps {
   onCollapse: (collapsed: boolean) => void;
 }
 
-const RL_NAV_ITEMS = [
-  { path: '/rl/learn', label: 'Learn', icon: BrainIcon },
-  { path: '/rl/race', label: 'Race', icon: ZapIcon },
-] as const;
-
 export function AppSidebar({ templates, sidebarOpen, onToggle, collapsed, onCollapse }: AppSidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const currentPath = location.pathname.replace(/\/+$/, '') || '/';
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const homeIconRef = useRef<HomeIconHandle>(null);
+  const brainIconRef = useRef<BrainIconHandle>(null);
+  const zapIconRef = useRef<ZapIconHandle>(null);
+  const fileTextIconRef = useRef<FileTextIconHandle>(null);
+  const layersIconRef = useRef<LayersIconHandle>(null);
 
   return (
     <>
@@ -46,7 +52,8 @@ export function AppSidebar({ templates, sidebarOpen, onToggle, collapsed, onColl
       {/* Sidebar */}
       <aside
         className={`
-          fixed md:relative z-50 h-screen flex flex-col
+          fixed md:relative z-50 h-full min-h-0 flex flex-col
+          inset-y-0 md:inset-y-auto
           bg-sidebar border-r border-sidebar-border
           will-change-transform
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
@@ -72,14 +79,16 @@ export function AppSidebar({ templates, sidebarOpen, onToggle, collapsed, onColl
             </div>
           )}
           <button
+            type="button"
             onClick={() => onCollapse(!collapsed)}
-            className="hidden md:flex w-7 h-7 items-center justify-center rounded-lg text-text-muted hover:text-text hover:bg-white/5 transition-all"
+            className="hidden md:flex w-7 h-7 items-center justify-center rounded-lg text-text-muted hover:text-text hover:bg-white/5 transition-all cursor-pointer"
           >
             <ChevronLeftIcon size={14} className={`transition-transform duration-300 ${collapsed ? 'rotate-180' : ''}`} />
           </button>
           <button
+            type="button"
             onClick={onToggle}
-            className="md:hidden w-7 h-7 flex items-center justify-center rounded-lg text-text-muted hover:text-text"
+            className="md:hidden w-7 h-7 flex items-center justify-center rounded-lg text-text-muted hover:text-text cursor-pointer"
           >
             <XIcon size={14} />
           </button>
@@ -89,13 +98,16 @@ export function AppSidebar({ templates, sidebarOpen, onToggle, collapsed, onColl
         <nav className={`flex-1 flex flex-col gap-1 py-3 ${collapsed ? 'px-2' : 'px-3'}`}>
           {/* New Chat button */}
           <button
+            type="button"
             onClick={() => { navigate('/'); if (sidebarOpen) onToggle(); }}
+            onMouseEnter={() => homeIconRef.current?.startAnimation()}
+            onMouseLeave={() => homeIconRef.current?.stopAnimation()}
             className={`sidebar-nav-item ${collapsed ? 'justify-center px-0' : ''} ${
               currentPath === '/' ? 'active' : ''
             }`}
             title={collapsed ? 'New Chat' : undefined}
           >
-            <HomeIcon size={16} className={currentPath === '/' ? 'text-lime' : ''} />
+            <HomeIcon ref={homeIconRef} size={16} className={currentPath === '/' ? 'text-lime' : ''} />
             {!collapsed && <span>New Chat</span>}
           </button>
 
@@ -108,20 +120,50 @@ export function AppSidebar({ templates, sidebarOpen, onToggle, collapsed, onColl
               RL Training
             </p>
           )}
-          {RL_NAV_ITEMS.map(({ path, label, icon: Icon }) => {
-            const active = currentPath === path || currentPath === path.replace('/rl', '');
+          {(() => {
+            const learnPath = '/rl/learn';
+            const learnActive =
+              currentPath === learnPath || currentPath === learnPath.replace('/rl', '');
+            const racePath = '/rl/race';
+            const raceActive =
+              currentPath === racePath || currentPath === racePath.replace('/rl', '');
             return (
-              <button
-                key={path}
-                onClick={() => { navigate(path); if (sidebarOpen) onToggle(); }}
-                className={`sidebar-nav-item ${active ? 'active' : ''} ${collapsed ? 'justify-center px-0' : ''}`}
-                title={collapsed ? label : undefined}
-              >
-                <Icon size={16} className={active ? 'text-lime' : ''} />
-                {!collapsed && <span>{label}</span>}
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigate(learnPath);
+                    if (sidebarOpen) onToggle();
+                  }}
+                  onMouseEnter={() => brainIconRef.current?.startAnimation()}
+                  onMouseLeave={() => brainIconRef.current?.stopAnimation()}
+                  className={`sidebar-nav-item ${learnActive ? 'active' : ''} ${collapsed ? 'justify-center px-0' : ''}`}
+                  title={collapsed ? 'Learn' : undefined}
+                >
+                  <BrainIcon
+                    ref={brainIconRef}
+                    size={16}
+                    className={learnActive ? 'text-lime' : ''}
+                  />
+                  {!collapsed && <span>Learn</span>}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigate(racePath);
+                    if (sidebarOpen) onToggle();
+                  }}
+                  onMouseEnter={() => zapIconRef.current?.startAnimation()}
+                  onMouseLeave={() => zapIconRef.current?.stopAnimation()}
+                  className={`sidebar-nav-item ${raceActive ? 'active' : ''} ${collapsed ? 'justify-center px-0' : ''}`}
+                  title={collapsed ? 'Race' : undefined}
+                >
+                  <ZapIcon ref={zapIconRef} size={16} className={raceActive ? 'text-lime' : ''} />
+                  {!collapsed && <span>Race</span>}
+                </button>
+              </>
             );
-          })}
+          })()}
 
           {/* Divider */}
           <div className={`h-px bg-sidebar-border my-2 ${collapsed ? 'mx-1' : 'mx-1'}`} />
@@ -133,7 +175,7 @@ export function AppSidebar({ templates, sidebarOpen, onToggle, collapsed, onColl
                 Learned
               </p>
               {templates.length === 0 ? (
-                <p className="text-[11px] text-text-muted/60 px-3 py-1">No templates yet</p>
+                <p className="text-[11px] text-text-muted/60 px-3 py-1">No learnings yet</p>
               ) : (
                 <div className="flex flex-col gap-0.5 max-h-[320px] overflow-y-auto">
                   {templates.slice(0, 10).map((t) => {
@@ -206,10 +248,13 @@ export function AppSidebar({ templates, sidebarOpen, onToggle, collapsed, onColl
 
           {collapsed && templates.length > 0 && (
             <button
+              type="button"
               className="sidebar-nav-item justify-center px-0"
-              title={`${templates.length} learned templates`}
+              title={`${templates.length} saved learnings`}
+              onMouseEnter={() => layersIconRef.current?.startAnimation()}
+              onMouseLeave={() => layersIconRef.current?.stopAnimation()}
             >
-              <LayersIcon size={16} />
+              <LayersIcon ref={layersIconRef} size={16} />
             </button>
           )}
         </nav>
@@ -219,12 +264,18 @@ export function AppSidebar({ templates, sidebarOpen, onToggle, collapsed, onColl
           <button
             type="button"
             onClick={() => { navigate('/docs/overview'); if (sidebarOpen) onToggle(); }}
+            onMouseEnter={() => fileTextIconRef.current?.startAnimation()}
+            onMouseLeave={() => fileTextIconRef.current?.stopAnimation()}
             className={`sidebar-nav-item w-full ${collapsed ? 'justify-center px-0' : ''} ${
               currentPath.startsWith('/docs') ? 'active' : ''
             }`}
             title={collapsed ? 'API docs' : undefined}
           >
-            <FileTextIcon size={16} className={currentPath.startsWith('/docs') ? 'text-lime' : ''} />
+            <FileTextIcon
+              ref={fileTextIconRef}
+              size={16}
+              className={currentPath.startsWith('/docs') ? 'text-lime' : ''}
+            />
             {!collapsed && <span>API docs</span>}
           </button>
         </div>
