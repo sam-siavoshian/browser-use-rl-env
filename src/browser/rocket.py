@@ -186,6 +186,12 @@ async def _execute_step(page: Page, step: TemplateStep, step_index: int) -> None
 
             await asyncio.sleep((step.ms or 1000) / 1000.0)
 
+        elif step.action in ("extract", "done", "screenshot", "find_text"):
+            # These are browser-use actions that don't need Playwright execution.
+            # "extract" and "done" are handled by page content capture after all steps.
+            # Just pass through — the page is already in the right state.
+            pass
+
         else:
             raise RocketAbortError(step_index, step, f"Unknown action: {step.action}")
 
