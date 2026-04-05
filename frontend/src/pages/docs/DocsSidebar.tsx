@@ -93,7 +93,7 @@ export function DocsSidebar({ mobileOpen, onMobileClose }: DocsSidebarProps) {
           <button
             type="button"
             onClick={() => {
-              navigate('/');
+              navigate('/learn');
               onMobileClose();
             }}
             onMouseEnter={() => backIconRef.current?.startAnimation()}

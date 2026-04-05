@@ -8,28 +8,11 @@ import time
 from browser_use import Agent, BrowserSession
 from langchain_anthropic import ChatAnthropic
 
+from src.browser.agent_handoff import build_agent_handoff_prompt
 from src.browser.session_cleanup import release_browser_session
 from src.models import AgentResult, RocketResult
 
 logger = logging.getLogger("rocket_booster.agent")
-
-
-def _build_task_description(
-    task: str, rocket_result: RocketResult | None
-) -> str:
-    """Build a contextual task description for the agent.
-
-    If the rocket phase completed some steps, tell the agent where it is
-    and what's been done so it doesn't redo work.
-    """
-    if rocket_result and rocket_result.steps_completed > 0:
-        return (
-            f"You are already on the page: {rocket_result.current_url}. "
-            f"The first {rocket_result.steps_completed} steps of the task have "
-            f"already been completed via automation. "
-            f"Complete the remaining task: {task}"
-        )
-    return task
 
 
 class BrowserUseAgent:
@@ -67,7 +50,9 @@ class BrowserUseAgent:
         Returns:
             AgentResult with trace data.
         """
-        agent_task = _build_task_description(task, rocket_result)
+        agent_task, rocket_handoff, _branch = build_agent_handoff_prompt(
+            task, rocket_result
+        )
 
         llm = ChatAnthropic(
             model=self._model,
@@ -86,6 +71,7 @@ class BrowserUseAgent:
             "browser_session": session,
             "max_failures": self._max_failures,
             "max_actions_per_step": self._max_actions_per_step,
+            "directly_open_url": not rocket_handoff,
         }
         if custom_tools is not None:
             agent_kwargs["tools"] = custom_tools

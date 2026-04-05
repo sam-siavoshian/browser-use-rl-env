@@ -1,16 +1,56 @@
-import { useState, useRef, useCallback, useLayoutEffect } from 'react';
+import {
+  useState,
+  useRef,
+  useCallback,
+  useLayoutEffect,
+  forwardRef,
+  useImperativeHandle,
+} from 'react';
 import { CHAT_INPUT_MAX_HEIGHT_PX, PRIMARY_INPUT_MIN_HEIGHT_PX } from '../../ui/inputSizing';
+import { useRotatingTypewriter } from '../../hooks/useRotatingTypewriter';
+
+const CHAT_PLACEHOLDER_PHRASES = [
+  'Ask Forge to inspect a site',
+  'Research a topic in the browser',
+  'Compare products across pages',
+  'Summarize what happened in a flow',
+  'Check a repo or docs page',
+] as const;
+
+export type ChatInputHandle = { focus: () => void };
 
 interface ChatInputProps {
   onSubmit: (task: string) => void;
   disabled?: boolean;
   placeholder?: string;
+  /** Controlled: when both are set, value is owned by parent (e.g. pills insert text without submitting). */
+  value?: string;
+  onValueChange?: (v: string) => void;
 }
 
-export function ChatInput({ onSubmit, disabled, placeholder }: ChatInputProps) {
-  const [value, setValue] = useState('');
+export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput(
+  { onSubmit, disabled, placeholder, value: valueProp, onValueChange },
+  ref,
+) {
+  const [internalValue, setInternalValue] = useState('');
+  const controlled = valueProp !== undefined && onValueChange !== undefined;
+  const value = controlled ? valueProp : internalValue;
+  const setValue = useCallback(
+    (v: string) => {
+      if (controlled) onValueChange(v);
+      else setInternalValue(v);
+    },
+    [controlled, onValueChange],
+  );
+
   const [focused, setFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const showTypewriter = value === '' && !focused && !disabled;
+  const typewriterText = useRotatingTypewriter(showTypewriter, CHAT_PLACEHOLDER_PHRASES);
+
+  useImperativeHandle(ref, () => ({
+    focus: () => textareaRef.current?.focus(),
+  }));
 
   const syncHeight = useCallback(() => {
     const el = textareaRef.current;
@@ -32,7 +72,7 @@ export function ChatInput({ onSubmit, disabled, placeholder }: ChatInputProps) {
     if (!trimmed || disabled) return;
     onSubmit(trimmed);
     setValue('');
-  }, [value, disabled, onSubmit]);
+  }, [value, disabled, onSubmit, setValue]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -69,24 +109,34 @@ export function ChatInput({ onSubmit, disabled, placeholder }: ChatInputProps) {
             `,
           }}
         >
-          <textarea
-            ref={textareaRef}
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setFocused(false)}
-            placeholder={placeholder || 'Send a message...'}
-            disabled={disabled}
-            rows={1}
-            className="flex-1 resize-none bg-transparent text-[15px] text-text placeholder-text-muted/60
-                       focus:outline-none disabled:opacity-30 leading-[1.6] py-0.5 px-0
-                       min-h-[36px] overflow-y-auto"
-            style={{
-              fontFamily: 'var(--font-body)',
-              maxHeight: CHAT_INPUT_MAX_HEIGHT_PX,
-            }}
-          />
+          <div className="relative flex-1 min-w-0">
+            <textarea
+              ref={textareaRef}
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onFocus={() => setFocused(true)}
+              onBlur={() => setFocused(false)}
+              placeholder={showTypewriter ? '' : (placeholder || 'Send a message...')}
+              disabled={disabled}
+              rows={1}
+              className="w-full resize-none bg-transparent text-[15px] text-text placeholder-text-muted/60
+                         focus:outline-none disabled:opacity-30 leading-[24px] py-[6px] px-0
+                         min-h-[36px] overflow-y-auto"
+              style={{
+                fontFamily: 'var(--font-body)',
+                maxHeight: CHAT_INPUT_MAX_HEIGHT_PX,
+              }}
+            />
+            {showTypewriter && (
+              <div
+                className="pointer-events-none absolute inset-0 flex items-start py-[6px] text-[15px] leading-[24px] text-text-muted/60"
+                aria-hidden
+              >
+                <span className="min-w-0 max-w-full truncate">{typewriterText || (placeholder || 'Send a message...')}</span>
+              </div>
+            )}
+          </div>
           <button
             type="button"
             onClick={handleSubmit}
@@ -111,4 +161,4 @@ export function ChatInput({ onSubmit, disabled, placeholder }: ChatInputProps) {
       </div>
     </div>
   );
-}
+});

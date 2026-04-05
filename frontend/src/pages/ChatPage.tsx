@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ChatInput } from '../components/chat/ChatInput';
+import { ChatInput, type ChatInputHandle } from '../components/chat/ChatInput';
 import { ActionFeed } from '../components/chat/ActionFeed';
 import { SessionStats } from '../components/chat/SessionStats';
 import { ShiningText } from '../components/ui/shining-text';
@@ -24,6 +24,8 @@ export function ChatPage() {
   const timer = useTimer();
   const idleHomeRef = useRef<HTMLDivElement>(null);
   const idleContentRef = useRef<HTMLDivElement>(null);
+  const idleChatInputRef = useRef<ChatInputHandle>(null);
+  const [idleDraft, setIdleDraft] = useState('');
 
   useEffect(() => {
     setSessionId(urlSessionId);
@@ -93,7 +95,7 @@ export function ChatPage() {
               className="text-[48px] sm:text-[56px] leading-[1.05] tracking-[-0.03em] text-text"
               style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic' }}
             >
-              What do you want to do!
+              What do you want to do?
             </h1>
             <p className="text-[14px] text-text-dim mt-4 max-w-[440px] mx-auto leading-[1.7]">
               Describe a flow, site, or task in the browser. If I&apos;ve learned it before, I&apos;ll be fast.
@@ -105,11 +107,22 @@ export function ChatPage() {
             className="w-full pointer-events-auto"
             style={{ animation: 'fade-up 0.5s cubic-bezier(0.16,1,0.3,1) 80ms both' }}
           >
-            <ChatInput onSubmit={handleSubmit} />
+            <ChatInput
+              ref={idleChatInputRef}
+              value={idleDraft}
+              onValueChange={setIdleDraft}
+              onSubmit={handleSubmit}
+            />
           </div>
 
           <div className="w-full max-w-[580px] mx-auto pointer-events-auto" style={{ animation: 'fade-up 0.5s cubic-bezier(0.16,1,0.3,1) 160ms both' }}>
-            <ExamplePillGrid onPick={(task) => void handleSubmit(task)} animBaseMs={180} />
+            <ExamplePillGrid
+              onPick={(task) => {
+                setIdleDraft(task);
+                queueMicrotask(() => idleChatInputRef.current?.focus());
+              }}
+              animBaseMs={180}
+            />
           </div>
 
           {/* Keyboard hint */}

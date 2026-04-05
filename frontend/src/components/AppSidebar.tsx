@@ -1,8 +1,7 @@
 import { useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
-  RocketIcon,
-  HomeIcon,
+  FlameIcon,
   MessageCircleIcon,
   BrainIcon,
   ZapIcon,
@@ -11,7 +10,6 @@ import {
   XIcon,
   ChevronLeftIcon,
   FileTextIcon,
-  type HomeIconHandle,
   type BrainIconHandle,
   type ZapIconHandle,
   type FileTextIconHandle,
@@ -33,7 +31,6 @@ export function AppSidebar({ templates, sidebarOpen, onToggle, collapsed, onColl
   const currentPath = location.pathname.replace(/\/+$/, '') || '/';
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const homeIconRef = useRef<HomeIconHandle>(null);
   const brainIconRef = useRef<BrainIconHandle>(null);
   const zapIconRef = useRef<ZapIconHandle>(null);
   const fileTextIconRef = useRef<FileTextIconHandle>(null);
@@ -67,15 +64,15 @@ export function AppSidebar({ templates, sidebarOpen, onToggle, collapsed, onColl
         <div className={`flex items-center h-14 px-3 border-b border-sidebar-border ${collapsed ? 'justify-center' : 'justify-between'}`}>
           <button
             type="button"
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/learn')}
             className={`flex items-center gap-2.5 pl-1 rounded-lg hover:bg-white/[0.04] transition-colors cursor-pointer ${collapsed ? 'justify-center p-0' : ''}`}
-            title="Home"
+            title="Chat"
           >
             <div className="w-7 h-7 rounded-lg bg-lime/10 flex items-center justify-center shrink-0">
-              <RocketIcon size={14} className="text-lime" />
+              <FlameIcon size={14} className="text-lime" />
             </div>
             {!collapsed && (
-              <span className="text-[14px] font-semibold text-text tracking-tight">Rocket</span>
+              <span className="text-[14px] font-semibold text-text tracking-tight">Forge</span>
             )}
           </button>
           <button
@@ -96,22 +93,7 @@ export function AppSidebar({ templates, sidebarOpen, onToggle, collapsed, onColl
 
         {/* Navigation */}
         <nav className={`flex-1 flex flex-col gap-1 py-3 ${collapsed ? 'px-2' : 'px-3'}`}>
-          {/* Home — root hub (not /learn) */}
-          <button
-            type="button"
-            onClick={() => { navigate('/'); if (sidebarOpen) onToggle(); }}
-            onMouseEnter={() => homeIconRef.current?.startAnimation()}
-            onMouseLeave={() => homeIconRef.current?.stopAnimation()}
-            className={`sidebar-nav-item ${collapsed ? 'justify-center px-0' : ''} ${
-              currentPath === '/' ? 'active' : ''
-            }`}
-            title={collapsed ? 'Home' : undefined}
-          >
-            <HomeIcon ref={homeIconRef} size={16} className={currentPath === '/' ? 'text-lime' : ''} />
-            {!collapsed && <span>Home</span>}
-          </button>
-
-          {/* Browser chat — /learn */}
+          {/* Browser chat — /learn (default app entry) */}
           <button
             type="button"
             onClick={() => { navigate('/learn'); if (sidebarOpen) onToggle(); }}
@@ -196,9 +178,16 @@ export function AppSidebar({ templates, sidebarOpen, onToggle, collapsed, onColl
           {/* Templates section */}
           {!collapsed && (
             <div className="flex flex-col gap-0.5">
-              <p className="text-[10px] font-mono uppercase tracking-[0.12em] text-text-muted px-3 py-1.5">
-                Learned
-              </p>
+              <div className="flex items-center gap-2 px-3 py-1.5">
+                <p className="text-[10px] font-mono uppercase tracking-[0.12em] text-text-muted">
+                  Learned
+                </p>
+                {templates.length > 0 && (
+                  <span className="text-[9px] font-mono font-bold bg-lime/15 text-lime px-1.5 py-[1px] rounded-full">
+                    {templates.length}
+                  </span>
+                )}
+              </div>
               {templates.length === 0 ? (
                 <p className="text-[11px] text-text-muted/60 px-3 py-1">No learnings yet</p>
               ) : (
@@ -342,9 +331,9 @@ export function MobileTopBar({ onToggle }: { onToggle: () => void }) {
       </button>
       <div className="flex items-center gap-2 ml-3">
         <div className="w-6 h-6 rounded-md bg-lime/10 flex items-center justify-center">
-          <RocketIcon size={12} className="text-lime" />
+          <FlameIcon size={12} className="text-lime" />
         </div>
-        <span className="text-[13px] font-semibold text-text">Rocket</span>
+        <span className="text-[13px] font-semibold text-text">Forge</span>
       </div>
     </div>
   );

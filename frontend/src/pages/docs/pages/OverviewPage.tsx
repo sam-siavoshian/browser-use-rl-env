@@ -2,7 +2,7 @@ import { DocPageShell, DocSection } from '../DocPageShell';
 
 export function OverviewPage() {
   return (
-    <DocPageShell kicker="Rocket Booster API" title="Self-improving browser agents">
+    <DocPageShell kicker="Forge API" title="Self-improving browser agents">
       <DocSection title="What this is" delay={40}>
         <p className="text-[15px] text-text-dim leading-relaxed max-w-[52ch]">
           The backend runs <strong className="text-text font-medium">browser-use</strong> agents against a cloud browser (CDP),
@@ -21,14 +21,14 @@ export function OverviewPage() {
           <li className="flex gap-3">
             <span className="font-mono text-lime/80 text-[12px] shrink-0">Chat</span>
             <span>
-              <code className="font-mono text-[12px] text-sky/90">POST /chat</code> — if embedding match is high enough, runs Rocket (Playwright + agent); otherwise full agent and{' '}
+              <code className="font-mono text-[12px] text-sky/90">POST /chat</code> — if embedding match is high enough, runs the forged path (Playwright + agent); otherwise full agent and{' '}
               <strong className="text-text font-medium">auto-learns</strong> a template (non-fatal on failure).
             </span>
           </li>
           <li className="flex gap-3">
             <span className="font-mono text-lime/80 text-[12px] shrink-0">Race</span>
             <span>
-              <code className="font-mono text-[12px] text-sky/90">POST /compare</code> — baseline vs rocket in parallel for benchmarking.
+              <code className="font-mono text-[12px] text-sky/90">POST /compare</code> — baseline vs forge in parallel for benchmarking.
             </span>
           </li>
         </ul>

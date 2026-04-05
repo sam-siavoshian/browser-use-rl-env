@@ -1,9 +1,9 @@
-"""FastAPI backend for the Rocket Booster system.
+"""FastAPI backend for the Forge system.
 
 Three flows:
   LEARN: Agent runs task → extract template → store in Supabase
-  RACE:  Baseline (full agent) vs Rocket (Playwright + agent handoff)
-  RUN:   Single execution (auto/baseline/rocket mode)
+  RACE:  Baseline (full agent) vs Forge (Playwright + agent handoff)
+  RUN:   Single execution (auto/baseline/forge mode)
 
 Frontend polling model:
   POST /api/learn or /api/compare → returns session IDs immediately
@@ -424,7 +424,7 @@ async def _run_baseline(session_id: str, task: str) -> None:
 
 
 async def _run_rocket(session_id: str, task: str) -> None:
-    """Run task using rocket booster: Playwright for known steps, agent for the rest."""
+    """Run task using Forge: Playwright for known steps, agent for the rest."""
     start_ms = time.monotonic() * 1000
     mgr = browser = None
     bu_session = None
@@ -461,7 +461,7 @@ async def _run_rocket(session_id: str, task: str) -> None:
 
         mgr, browser, cdp_url = await _create_browser(session_id)
 
-        _step(session_id, "Launching Playwright rocket...", "playwright")
+        _step(session_id, "Running forged path...", "playwright")
 
         from src.browser.rocket import PlaywrightRocket
         rocket = PlaywrightRocket()
@@ -473,11 +473,11 @@ async def _run_rocket(session_id: str, task: str) -> None:
                 _step(session_id, desc, "playwright", timing * 1000)
 
         if rocket_result.aborted:
-            _step(session_id, f"Rocket aborted at step {rocket_result.steps_completed}: {rocket_result.abort_reason}", "playwright")
+            _step(session_id, f"Forge aborted at step {rocket_result.steps_completed}: {rocket_result.abort_reason}", "playwright")
         else:
             _step(
                 session_id,
-                f"Rocket complete! {rocket_result.steps_completed} steps in {rocket_result.duration_seconds:.1f}s",
+                f"Forge complete! {rocket_result.steps_completed} steps in {rocket_result.duration_seconds:.1f}s",
                 "playwright",
             )
 
@@ -490,7 +490,7 @@ async def _run_rocket(session_id: str, task: str) -> None:
 
     except Exception as e:
         elapsed = time.monotonic() * 1000 - start_ms
-        logger.exception("Rocket failed: %s", e)
+        logger.exception("Forge failed: %s", e)
         _update(session_id, status="error", phase="error", duration_ms=elapsed, error=str(e), current_step=f"Error: {e}")
 
     finally:
@@ -573,7 +573,7 @@ async def _run_chat(session_id: str, task: str) -> None:
             filled_steps = _fill_parameters(filtered_steps, params, effective_handoff)
             mgr, browser, cdp_url = await _create_browser(session_id)
 
-            _step(session_id, "Launching Playwright rocket...", "playwright", action_type="agent_action")
+            _step(session_id, "Running forged path...", "playwright", action_type="agent_action")
             from src.browser.rocket import PlaywrightRocket
             rocket = PlaywrightRocket()
             rocket_result = await rocket.execute(cdp_url, filled_steps)
@@ -592,7 +592,7 @@ async def _run_chat(session_id: str, task: str) -> None:
                     _step(session_id, desc, "playwright", timing * 1000, action_type=action)
 
             if rocket_result.aborted:
-                _step(session_id, f"Rocket aborted: {rocket_result.abort_reason}", "playwright")
+                _step(session_id, f"Forge aborted: {rocket_result.abort_reason}", "playwright")
 
             # Build step summary for smarter agent handoff
             step_summary = _build_step_summary(filled_steps, rocket_result)
@@ -651,7 +651,7 @@ async def _run_chat(session_id: str, task: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-app = FastAPI(title="Rocket Booster API", version="0.1.0")
+app = FastAPI(title="Forge API", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -678,7 +678,7 @@ class TaskRequest(BaseModel):
 
 @app.post("/api/chat")
 async def chat(request: TaskRequest) -> dict:
-    """Start a chat session: auto-selects rocket or baseline+learn."""
+    """Start a chat session: auto-selects forge or baseline+learn."""
     sid = _create_session()
     _update(sid, task=request.task)
     chat_sessions.insert(0, sid)
@@ -708,7 +708,7 @@ async def list_chat_sessions() -> list[dict]:
 
 @app.post("/api/learn")
 async def learn(request: TaskRequest) -> dict:
-    """Learn a task: run agent, extract template, store for future rockets."""
+    """Learn a task: run agent, extract template, store for future forging."""
     sid = _create_session()
     asyncio.create_task(_run_learn(sid, request.task))
     return {"session_id": sid}
@@ -743,7 +743,7 @@ async def search_template(request: TaskRequest) -> dict:
 
 @app.post("/api/compare")
 async def compare(request: TaskRequest) -> dict:
-    """Start baseline + rocket runs in parallel. Returns session IDs immediately."""
+    """Start baseline + forge runs in parallel. Returns session IDs immediately."""
     baseline_id = _create_session()
     rocket_id = _create_session()
     asyncio.create_task(_run_baseline(baseline_id, request.task))

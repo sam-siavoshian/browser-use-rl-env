@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { BrainIcon, ZapIcon } from 'lucide-animated';
 import { AppSidebar, MobileTopBar } from './components/AppSidebar';
@@ -45,6 +45,8 @@ function App() {
   const [rocketId, setRocketId] = useState<string | null>(null);
   const [learnId, setLearnId] = useState<string | null>(null);
   const [templates, setTemplates] = useState<Template[]>([]);
+  const [totalTimeSavedMs, setTotalTimeSavedMs] = useState(0);
+  const [raceCount, setRaceCount] = useState(0);
 
   const { status: baseStatus } = usePoller(baselineId);
   const { status: rocketStatus } = usePoller(rocketId);
@@ -162,6 +164,22 @@ function App() {
       baseStatus?.status === 'complete' &&
       rocketStatus?.status === 'complete',
   );
+
+  // Accumulate time saved when a race completes
+  const lastAccumulatedRace = useRef<string | null>(null);
+  useEffect(() => {
+    if (
+      raceBothComplete &&
+      baseStatus &&
+      rocketStatus &&
+      baseStatus.duration_ms > rocketStatus.duration_ms &&
+      lastAccumulatedRace.current !== baselineId
+    ) {
+      lastAccumulatedRace.current = baselineId;
+      setTotalTimeSavedMs((prev) => prev + (baseStatus.duration_ms - rocketStatus.duration_ms));
+      setRaceCount((prev) => prev + 1);
+    }
+  }, [raceBothComplete, baseStatus, rocketStatus, baselineId]);
 
   const isDocsView = location.pathname.startsWith('/docs');
   if (isDocsView) {
@@ -363,17 +381,20 @@ function App() {
                 Enter a task similar to one you've already learned. The system will match it to a template and race Playwright against a vanilla agent.
               </p>
               <div className="w-full max-w-[520px] mx-auto">
-                <TaskInput onRun={launch} isRunning={false} />
-                {searchingTask && (
-                  <div className="mt-4">
-                    <TemplateSearchCard
-                      task={searchingTask}
-                      onRace={startRace}
-                      onLearnInstead={() => learn(searchingTask)}
-                      onDismiss={() => setSearchingTask(null)}
-                    />
-                  </div>
-                )}
+                <TaskInput
+                  onRun={launch}
+                  isRunning={false}
+                  racePopover={
+                    searchingTask ? (
+                      <TemplateSearchCard
+                        task={searchingTask}
+                        onRace={startRace}
+                        onLearnInstead={() => learn(searchingTask)}
+                        onDismiss={() => setSearchingTask(null)}
+                      />
+                    ) : undefined
+                  }
+                />
               </div>
             </div>
           </div>
@@ -383,7 +404,7 @@ function App() {
             <header className="flex-shrink-0 flex items-center gap-4 px-5 h-12 border-b border-border-subtle bg-surface/30 backdrop-blur-sm">
               <div className="flex items-center gap-2.5 flex-shrink-0">
                 <div className="w-[7px] h-[7px] rounded-full bg-lime" />
-                <span className="text-[13px] font-medium text-text-dim">Rocket Booster</span>
+                <span className="text-[13px] font-medium text-text-dim">Forge</span>
               </div>
               <div className="flex-1">
                 <TaskInput onRun={launch} isRunning={isRunning} onStop={reset} compact />
@@ -401,14 +422,14 @@ function App() {
               <div className="flex flex-col p-4 overflow-hidden">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2.5">
-                    <span className="text-[13px] font-medium text-text-dim">Without Booster</span>
+                    <span className="text-[13px] font-medium text-text-dim">Without Forge</span>
                     <PhaseIndicator phase={basePh} />
                   </div>
                   <Timer elapsedMs={baseTimer.elapsedMs} isComplete={baseStatus?.status === 'complete'} variant="baseline" />
                 </div>
                 <BrowserEmbed liveUrl={baseStatus?.live_url ?? null} phase={basePh} />
                 <div className="mt-3 flex-1 overflow-y-auto saas-inset-sm px-3 py-2">
-                  <StepTracker steps={baseStatus?.steps ?? []} phase={basePh} currentStep={baseStatus?.current_step ?? ''} />
+                  <StepTracker steps={baseStatus?.steps ?? []} phase={basePh} currentStep={baseStatus?.current_step ?? ''} showSummary />
                 </div>
               </div>
 
@@ -427,20 +448,25 @@ function App() {
               <div className="flex flex-col p-4 overflow-hidden">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2.5">
-                    <span className="text-[13px] font-medium text-lime">With Booster</span>
+                    <span className="text-[13px] font-medium text-lime">With Forge</span>
                     <PhaseIndicator phase={rocketPh} />
                   </div>
                   <Timer elapsedMs={rocketTimer.elapsedMs} isComplete={rocketStatus?.status === 'complete'} variant="rocket" />
                 </div>
                 <BrowserEmbed liveUrl={rocketStatus?.live_url ?? null} phase={rocketPh} />
                 <div className="mt-3 flex-1 overflow-y-auto saas-inset-sm px-3 py-2">
-                  <StepTracker steps={rocketStatus?.steps ?? []} phase={rocketPh} currentStep={rocketStatus?.current_step ?? ''} />
+                  <StepTracker steps={rocketStatus?.steps ?? []} phase={rocketPh} currentStep={rocketStatus?.current_step ?? ''} showSummary />
                 </div>
               </div>
             </div>
             <div className="flex items-center justify-between gap-4 px-5 min-h-9 py-2 border-t border-border-subtle bg-surface/20 text-[11px] font-mono text-text-muted">
               <span className="truncate max-w-sm min-w-0">{currentTask}</span>
               <div className="flex items-center gap-3 flex-shrink-0">
+                {totalTimeSavedMs > 0 && (
+                  <span className="text-lime/70">
+                    {(totalTimeSavedMs / 1000).toFixed(1)}s saved ({raceCount} race{raceCount !== 1 ? 's' : ''})
+                  </span>
+                )}
                 <span>{(baseStatus?.steps.length ?? 0) + (rocketStatus?.steps.length ?? 0)} steps</span>
                 {raceBothComplete && (
                   <button

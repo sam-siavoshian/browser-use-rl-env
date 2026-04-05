@@ -21,10 +21,10 @@ export function Analogy() {
         {/* Framing */}
         <div className="px-5 pt-4 pb-3">
           <p className="text-[12px] text-text-dim leading-[1.6] text-center">
-            When the path is known, replay beats rethink: a small, deterministic runner can finish what used to take
-            a full reasoning loop every time.
+            When the path is known, replay beats rethink. A forged path executes in milliseconds
+            what used to take a full LLM reasoning loop every time.
             <br />
-            That is the idea behind the booster for browser agents.
+            Run once. Forge the template. Replay forever.
           </p>
         </div>
 
@@ -33,7 +33,7 @@ export function Analogy() {
         {/* Side by side */}
         <div className="grid grid-cols-[1fr_1px_1fr]">
           <div className="p-4 text-center">
-            <p className="text-[9px] font-mono text-text-muted uppercase tracking-[0.2em] mb-2">Without booster</p>
+            <p className="text-[9px] font-mono text-text-muted uppercase tracking-[0.2em] mb-2">Without Forge</p>
             <p className="font-serif italic text-[36px] leading-none text-text-muted tracking-tight">~40s</p>
             <p className="text-[11px] text-text-muted mt-2">Vanilla browser-use agent</p>
             <p className="text-[10px] text-text-muted/50 mt-0.5">LLM reasons through every click</p>
@@ -44,9 +44,9 @@ export function Analogy() {
           </div>
 
           <div className="p-4 text-center">
-            <p className="text-[9px] font-mono text-lime uppercase tracking-[0.2em] mb-2">With booster</p>
+            <p className="text-[9px] font-mono text-lime uppercase tracking-[0.2em] mb-2">With Forge</p>
             <p className="font-serif italic text-[36px] leading-none text-lime tracking-tight">~8s</p>
-            <p className="text-[11px] text-text mt-2">Agent + Rocket Booster</p>
+            <p className="text-[11px] text-text mt-2">Agent + Forge</p>
             <p className="text-[10px] text-text-muted/50 mt-0.5">Playwright replays, agent finishes</p>
           </div>
         </div>
@@ -104,7 +104,7 @@ export function Analogy() {
           <p className="text-[12px] text-text-dim">
             Same task. <span className="text-lime font-mono font-medium">5x faster.</span>{' '}
             You don&rsquo;t need a smarter model — you need a{' '}
-            <span className="text-lime italic font-serif">booster.</span>
+            <span className="text-lime italic font-serif">forge.</span>
           </p>
         </div>
       </div>

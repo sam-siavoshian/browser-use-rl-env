@@ -36,3 +36,37 @@ export const EXAMPLE_TASKS: ExampleTask[] = [
       'Go to allrecipes.com, search for "chocolate chip cookies", open the first result, and list all the ingredients and the total prep time.',
   },
 ];
+
+/** Tasks from Browser Use's official BU_Bench_V1 benchmark. */
+export const BENCHMARK_TASKS: ExampleTask[] = [
+  {
+    id: 'bu-stackexchange',
+    label: 'BU Bench: StackExchange communities',
+    task:
+      'Browse the list of active Q&A communities on https://stackexchange.com and list the names of the top 5 communities by current activity.',
+  },
+  {
+    id: 'bu-tmdb',
+    label: 'BU Bench: TMDB movie search',
+    task:
+      'Use the advanced search to filter movies released in 2022 and output the first 5 results with their average ratings.\nwebsite: https://themoviedb.org',
+  },
+  {
+    id: 'bu-newegg',
+    label: 'BU Bench: Newegg product review',
+    task:
+      'Search for "NVIDIA RTX 3080" on Newegg, then review the "Review Bytes" summary for this product and output the three key performance highlights.\nwebsite: https://newegg.com',
+  },
+  {
+    id: 'bu-metacritic',
+    label: 'BU Bench: Metacritic TV shows',
+    task:
+      'Browse the TV shows category and list the titles, metascores, and number of critic reviews for shows scoring below 60 with at least 10 critic reviews.\nwebsite: https://metacritic.com',
+  },
+  {
+    id: 'bu-bbcgoodfood',
+    label: 'BU Bench: BBC Good Food recipe',
+    task:
+      'Open the "Keto Pancakes" recipe page and compile a list of the suggested ingredient substitutions provided.\nwebsite: https://www.bbcgoodfood.com/',
+  },
+];

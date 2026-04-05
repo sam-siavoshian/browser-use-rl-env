@@ -1,20 +1,25 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { type ReactNode, useLayoutEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import { BrainIcon, RocketIcon } from 'lucide-animated';
+import { BrainIcon, FlameIcon } from 'lucide-animated';
 import { useRotatingTypewriter } from '../hooks/useRotatingTypewriter';
 import { ExamplePillGrid } from './ExamplePillGrid';
-import { PRIMARY_INPUT_MIN_HEIGHT_PX, TASK_FIELD_ABS_MAX_PX } from '../ui/inputSizing';
+import {
+  PRIMARY_INPUT_MIN_HEIGHT_PX,
+  TASK_FIELD_ABS_MAX_PX,
+  TASK_INPUT_SHELL_MIN_HEIGHT_PX,
+} from '../ui/inputSizing';
 
-const TASK_FIELD_MIN = PRIMARY_INPUT_MIN_HEIGHT_PX;
+const TASK_TEXTAREA_MIN = PRIMARY_INPUT_MIN_HEIGHT_PX;
+const TASK_SHELL_MIN = TASK_INPUT_SHELL_MIN_HEIGHT_PX;
 
-/** Short rotating prompts — keeps the field one line without resize. */
+/** Short rotating prompts — must fit one line beside Learn/Race on narrow widths. */
 const PLACEHOLDER_PHRASES = [
-  'Learn Amazon deals',
-  'Dig into Wikipedia',
-  'Read HN threads',
-  'Scout GitHub repos',
-  'Steal a recipe',
-  'Compare prices fast',
+  'Amazon deals',
+  'Wikipedia deep dive',
+  'Hacker News threads',
+  'GitHub repos',
+  'Recipe sites',
+  'Compare prices',
 ] as const;
 
 interface TaskInputProps {
@@ -23,17 +28,19 @@ interface TaskInputProps {
   isRunning: boolean;
   onStop?: () => void;
   compact?: boolean;
+  /** Anchored above the input row (e.g. template search dropdown over Race). */
+  racePopover?: ReactNode;
 }
 
 /** Empty on load so the field stays compact; examples / typing fill it. */
 export const DEFAULT_TASK = '';
 
-export function TaskInput({ onRun, onLearn, isRunning, onStop, compact }: TaskInputProps) {
+export function TaskInput({ onRun, onLearn, isRunning, onStop, compact, racePopover }: TaskInputProps) {
   const [task, setTask] = useState(DEFAULT_TASK);
   const [focused, setFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   /** Pixel height; transitions smoothly when content changes (e.g. picking an example). */
-  const [fieldHeight, setFieldHeight] = useState(TASK_FIELD_MIN);
+  const [fieldHeight, setFieldHeight] = useState(TASK_SHELL_MIN);
 
   const showTypewriter = task === '' && !focused && !isRunning;
   const typewriterText = useRotatingTypewriter(showTypewriter, PLACEHOLDER_PHRASES);
@@ -51,7 +58,7 @@ export function TaskInput({ onRun, onLearn, isRunning, onStop, compact }: TaskIn
     // Empty / whitespace-only: snap back to compact shell immediately (no rAF delay).
     if (task.trim() === '') {
       el.style.removeProperty('height');
-      setFieldHeight(TASK_FIELD_MIN);
+      setFieldHeight(TASK_SHELL_MIN);
       return;
     }
 
@@ -63,7 +70,7 @@ export function TaskInput({ onRun, onLearn, isRunning, onStop, compact }: TaskIn
         TASK_FIELD_ABS_MAX_PX,
         Math.round(window.innerHeight * 0.95),
       );
-      const next = Math.min(Math.max(natural, TASK_FIELD_MIN), cap);
+      const next = Math.min(Math.max(natural, TASK_SHELL_MIN), cap);
       setFieldHeight(next);
     };
 
@@ -133,14 +140,28 @@ export function TaskInput({ onRun, onLearn, isRunning, onStop, compact }: TaskIn
       <form onSubmit={handleSubmit} className="w-full">
         <div className="relative group">
           <div className="absolute -inset-px rounded-2xl bg-gradient-to-b from-lime/[0.04] to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+          {racePopover && (
+            <div
+              className="absolute right-1.5 bottom-full z-[70] mb-2 w-[min(360px,calc(100vw-2rem))] overflow-visible pointer-events-auto"
+              role="dialog"
+              aria-label="Template search"
+            >
+              <div className="relative overflow-visible">
+                <div className="overflow-hidden rounded-2xl shadow-[0_24px_70px_-18px_rgba(0,0,0,0.78),0_0_0_1px_rgba(255,255,255,0.04)]">
+                  {racePopover}
+                </div>
+                <div className="pointer-events-none absolute right-7 top-full h-3.5 w-3.5 -translate-y-2 rotate-45 border-r border-b border-border bg-surface shadow-[10px_10px_24px_-18px_rgba(0,0,0,0.85)]" />
+              </div>
+            </div>
+          )}
           <motion.div
             initial={false}
             animate={{ height: fieldHeight }}
             transition={shellTransition}
-            className="relative flex flex-row items-stretch gap-0 w-full min-h-[36px] rounded-2xl border border-border bg-surface overflow-hidden focus-within:border-lime/25 transition-[border-color,box-shadow] duration-300 ease-out"
+            className="relative flex flex-row items-stretch gap-0 w-full min-h-[46px] rounded-2xl border border-border bg-surface overflow-hidden focus-within:border-lime/25 transition-[border-color,box-shadow] duration-300 ease-out"
             style={{ boxShadow: insetShadow }}
           >
-            <div className="relative flex flex-1 min-w-0 min-h-0 self-stretch flex-col">
+            <div className="relative flex min-h-0 min-w-0 flex-1 flex-col self-stretch">
               <textarea
                 ref={textareaRef}
                 value={task}
@@ -150,7 +171,7 @@ export function TaskInput({ onRun, onLearn, isRunning, onStop, compact }: TaskIn
                   setTask(v);
                   if (v.trim() === '') {
                     e.target.style.removeProperty('height');
-                    setFieldHeight(TASK_FIELD_MIN);
+                    setFieldHeight(TASK_SHELL_MIN);
                   }
                 }}
                 onFocus={() => setFocused(true)}
@@ -159,18 +180,19 @@ export function TaskInput({ onRun, onLearn, isRunning, onStop, compact }: TaskIn
                 aria-label="What to learn in the browser"
                 disabled={isRunning}
                 rows={1}
-                className="relative z-[1] box-border w-full min-h-0 min-w-0 flex-1 py-1.5 pl-5 pr-3 bg-transparent rounded-none text-[14px] text-text leading-snug focus:outline-none resize-none disabled:opacity-30 overflow-y-auto break-words caret-lime [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:w-0 [&::-webkit-scrollbar]:h-0"
+                className="relative z-[1] box-border min-h-0 min-w-0 w-full flex-1 resize-none overflow-y-auto overflow-x-hidden break-words bg-transparent py-3 pl-5 pr-3 text-[14px] leading-[22px] text-text caret-lime focus:outline-none disabled:opacity-30 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:h-0 [&::-webkit-scrollbar]:w-0"
+                style={{ minHeight: TASK_TEXTAREA_MIN }}
               />
               {showTypewriter && (
                 <div
-                  className="pointer-events-none absolute inset-0 z-0 flex items-start pl-5 pr-3 pt-1.5 text-[14px] leading-snug text-text-muted/55"
+                  className="pointer-events-none absolute inset-0 z-0 flex min-w-0 items-start pl-5 pr-3 pt-3 text-[14px] leading-[22px] text-text-muted/55"
                   aria-hidden
                 >
-                  <span>{typewriterText}</span>
+                  <span className="min-w-0 max-w-full truncate">{typewriterText}</span>
                 </div>
               )}
             </div>
-            <div className="flex flex-row items-center gap-1.5 pr-1.5 pt-1.5 pb-1 shrink-0 self-start bg-surface">
+            <div className="relative flex shrink-0 flex-row items-center self-center pr-1.5">
               {onLearn && (
                 <button
                   type="button"
@@ -191,7 +213,7 @@ export function TaskInput({ onRun, onLearn, isRunning, onStop, compact }: TaskIn
                 disabled={!task.trim() && !isRunning}
                 className="group/race h-9 pl-3 pr-4 rounded-lg font-medium text-[12px] tracking-wide transition-all bg-lime text-bg hover:brightness-110 active:scale-[0.97] disabled:opacity-30 disabled:cursor-not-allowed inline-flex items-center gap-1.5 saas-btn-primary"
               >
-                <RocketIcon
+                <FlameIcon
                   size={14}
                   className="shrink-0 text-[#0a0a0a]/40 group-hover/race:text-[#0a0a0a]/55 transition-colors"
                   aria-hidden
