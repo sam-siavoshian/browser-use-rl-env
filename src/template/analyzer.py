@@ -39,17 +39,25 @@ write_file, read_file, done.
 - NEVER suggest browser chrome interactions (address bar, bookmarks, etc.).
 - Templates are for a browser automation agent, not a human user.
 
-CLASSIFICATION RULES:
-- FIXED: This exact action with these exact parameters will be the same every time \
-this template runs, regardless of the specific task instance. Examples: navigating \
-to a known URL, clicking a persistent UI element like a search icon.
-- PARAMETERIZED: The action type and target element are the same, but one or more \
-parameter values change based on the task. Examples: typing a search query (the \
-element is always the search box, but the text changes), navigating to a URL that \
-contains a variable path segment.
-- DYNAMIC: This step requires the agent to observe the current page state and make \
-a decision. The action, target, or both could vary. Examples: selecting a specific \
-product from search results, choosing a shipping option based on criteria.
+CLASSIFICATION RULES — BE AGGRESSIVE ABOUT FIXED AND PARAMETERIZED:
+- FIXED: The action and target element are structurally the same every run. The \
+CSS selector is stable. Examples: navigating to a URL, clicking a search button, \
+clicking "Submit", clicking the Nth item in a list (use :nth-child or :first-child \
+selectors), clicking a navigation link, scrolling, pressing Enter, extracting text \
+from a known selector. IMPORTANT: If the element can be targeted by a CSS selector \
+that works regardless of page content, it is FIXED, not DYNAMIC.
+- PARAMETERIZED: Same action and target, but a value changes based on the task. \
+Examples: typing a search query (target is always the search input, text changes), \
+filling a form field, navigating to a URL with a variable path.
+- DYNAMIC: Use ONLY when the agent truly needs to reason about page content to \
+decide WHAT to do or WHERE to click. Examples: choosing between multiple product \
+options based on criteria like price or rating, answering a CAPTCHA, making a \
+subjective choice. If the step is "click the first result" or "click the Nth item", \
+that is FIXED with a positional CSS selector, NOT DYNAMIC.
+
+BIAS TOWARD FIXED: When in doubt between FIXED and DYNAMIC, choose FIXED and \
+provide a CSS selector. More FIXED steps = faster template execution. Only use \
+DYNAMIC when no CSS selector could reliably target the element across runs.
 
 OUTPUT FORMAT: Respond with valid JSON only, no markdown fences, no commentary.\
 """
@@ -86,7 +94,10 @@ Also provide:
 - "action_type": a short category (e.g., "search", "purchase", "login", "form_fill", "data_extraction")
 - "task_pattern": a generalized task description with {{parameter_name}} placeholders
 - "parameters": array of all unique parameters with name, description, type (string/number/boolean), and whether required
-- "handoff_index": the index of the LAST step that is FIXED or PARAMETERIZED before the first DYNAMIC step
+- "handoff_index": the index of the LAST step that is FIXED or PARAMETERIZED. \
+Maximize this — push it as far as possible. If there are no DYNAMIC steps, set it \
+to the index of the last step. The goal is to have Playwright handle as many steps \
+as possible before handing off to the agent.
 - "estimated_time_saved_seconds": rough estimate of time saved by the deterministic prefix
 - "preconditions": any requirements (e.g., "requires_auth", "requires_javascript")
 
