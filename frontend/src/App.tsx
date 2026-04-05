@@ -10,6 +10,7 @@ import { PhaseIndicator } from './components/PhaseIndicator';
 import { ComparisonCard } from './components/ComparisonCard';
 import { TemplateSearchCard } from './components/TemplateSearchCard';
 import { ChatPage } from './pages/ChatPage';
+import { AgentResultMarkdown } from './components/chat/AgentResultMarkdown';
 import { BenchmarksPage } from './components/BenchmarksPage';
 import { DocsLayout } from './pages/docs/DocsLayout';
 import { usePoller } from './hooks/usePoller';
@@ -156,8 +157,26 @@ function App() {
   const rocketPh: Phase = rocketStatus?.phase ?? 'idle';
   const learnPh: Phase = learnStatus?.phase ?? 'idle';
   const isRunning = view === 'racing' || view === 'learning';
-  const liveSpeedup = baseTimer.elapsedMs > 2000 && rocketTimer.elapsedMs > 200
-    ? baseTimer.elapsedMs / rocketTimer.elapsedMs : null;
+  const liveSpeedup = useMemo(() => {
+    if (
+      baseStatus?.status === 'complete' &&
+      rocketStatus?.status === 'complete' &&
+      rocketStatus.duration_ms > 0
+    ) {
+      return baseStatus.duration_ms / rocketStatus.duration_ms;
+    }
+    if (baseTimer.elapsedMs > 2000 && rocketTimer.elapsedMs > 200) {
+      return baseTimer.elapsedMs / rocketTimer.elapsedMs;
+    }
+    return null;
+  }, [
+    baseStatus?.status,
+    baseStatus?.duration_ms,
+    rocketStatus?.status,
+    rocketStatus?.duration_ms,
+    baseTimer.elapsedMs,
+    rocketTimer.elapsedMs,
+  ]);
   const isChatView = view === 'chat' || view === 'chat_session';
   const raceBothComplete = Boolean(
     view === 'racing' &&
@@ -427,11 +446,25 @@ function App() {
                     <span className="text-[13px] font-medium text-text-dim">Without Forge</span>
                     <PhaseIndicator phase={basePh} />
                   </div>
-                  <Timer elapsedMs={baseTimer.elapsedMs} isComplete={baseStatus?.status === 'complete'} variant="baseline" />
+                  <Timer
+                    elapsedMs={baseTimer.elapsedMs}
+                    isComplete={baseStatus?.status === 'complete'}
+                    variant="baseline"
+                    durationMs={baseStatus?.duration_ms}
+                  />
                 </div>
                 <BrowserEmbed liveUrl={baseStatus?.live_url ?? null} phase={basePh} />
                 <div className="mt-3 flex-1 overflow-y-auto saas-inset-sm px-3 py-2">
                   <StepTracker steps={baseStatus?.steps ?? []} phase={basePh} currentStep={baseStatus?.current_step ?? ''} showSummary />
+                  {baseStatus?.result && (
+                    <div className="mt-3 pt-3 border-t border-border-subtle" style={{ animation: 'fade-up 0.4s ease both' }}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-text-dim" />
+                        <span className="text-[10px] font-mono uppercase tracking-wider text-text-muted">Response</span>
+                      </div>
+                      <AgentResultMarkdown content={baseStatus.result} />
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -453,11 +486,25 @@ function App() {
                     <span className="text-[13px] font-medium text-lime">With Forge</span>
                     <PhaseIndicator phase={rocketPh} />
                   </div>
-                  <Timer elapsedMs={rocketTimer.elapsedMs} isComplete={rocketStatus?.status === 'complete'} variant="rocket" />
+                  <Timer
+                    elapsedMs={rocketTimer.elapsedMs}
+                    isComplete={rocketStatus?.status === 'complete'}
+                    variant="rocket"
+                    durationMs={rocketStatus?.duration_ms}
+                  />
                 </div>
                 <BrowserEmbed liveUrl={rocketStatus?.live_url ?? null} phase={rocketPh} />
                 <div className="mt-3 flex-1 overflow-y-auto saas-inset-sm px-3 py-2">
                   <StepTracker steps={rocketStatus?.steps ?? []} phase={rocketPh} currentStep={rocketStatus?.current_step ?? ''} showSummary />
+                  {rocketStatus?.result && (
+                    <div className="mt-3 pt-3 border-t border-lime/15" style={{ animation: 'fade-up 0.4s ease both' }}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-lime" />
+                        <span className="text-[10px] font-mono uppercase tracking-wider text-lime/70">Response</span>
+                      </div>
+                      <AgentResultMarkdown content={rocketStatus.result} />
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
