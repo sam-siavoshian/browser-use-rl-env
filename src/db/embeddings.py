@@ -37,47 +37,16 @@ def build_embedding_text(
     action_type: str,
     site_knowledge: dict[str, Any] | None = None,
 ) -> str:
-    """Build a structured text representation for embedding.
+    """Build a text representation for embedding.
 
-    Combines task semantics, step structure, parameter schema, and domain
-    context into a single string optimized for embedding quality.
-
-    The task: line comes first as the primary semantic signal.
+    Uses the same format as query embeddings (task + domain + action) so that
+    cosine similarity between stored and query embeddings is high when the
+    task semantics match. Previously included step/param structure which
+    penalized similarity because queries never have that info.
     """
     lines = [f"task: {task_pattern}"]
-
-    # Step sequence — action verbs only, DYNAMIC steps labeled as "dynamic"
-    if steps:
-        step_names = []
-        for s in steps:
-            classification = s.get("classification", "").upper()
-            if classification == "DYNAMIC":
-                step_names.append("dynamic")
-            else:
-                action = s.get("action", "unknown")
-                step_names.append(action)
-        lines.append(f"steps: {' > '.join(step_names)}")
-
-    # Parameter schema
-    if parameters:
-        param_parts = []
-        for p in parameters:
-            name = p.get("name", "unknown")
-            ptype = p.get("type", "string")
-            required = "required" if p.get("required", True) else "optional"
-            param_parts.append(f"{name}({ptype}, {required})")
-        lines.append(f"params: {', '.join(param_parts)}")
-
     lines.append(f"domain: {domain}")
     lines.append(f"action: {action_type}")
-
-    # Site knowledge context — semantic element names from selector_map keys
-    if site_knowledge:
-        selector_map = site_knowledge.get("selector_map", {})
-        if selector_map:
-            context_keys = list(selector_map.keys())
-            lines.append(f"context: {', '.join(context_keys)}")
-
     return "\n".join(lines)
 
 
