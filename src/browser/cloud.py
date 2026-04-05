@@ -26,8 +26,8 @@ def _wait_seconds_for_429(response: httpx.Response, attempt: int) -> float:
                 return w + random.uniform(0, 2)
         except ValueError:
             pass
-    base = min(5 * (2**attempt), 120)
-    return base + random.uniform(0, 3)
+    base = min(3 * (2**attempt), 15)
+    return base + random.uniform(0, 2)
 
 
 def _get_api_key() -> str:
@@ -62,7 +62,7 @@ class CloudBrowserManager:
         if timeout_minutes != 60:
             body["timeout"] = timeout_minutes
 
-        max_retries = 6
+        max_retries = 3
         async with httpx.AsyncClient() as client:
             response: httpx.Response | None = None
             for attempt in range(max_retries):
