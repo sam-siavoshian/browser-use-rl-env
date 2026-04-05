@@ -10,6 +10,7 @@ import {
   XIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  FileTextIcon,
 } from 'lucide-animated';
 import type { Template } from '../types';
 
@@ -214,7 +215,18 @@ export function AppSidebar({ templates, sidebarOpen, onToggle, collapsed, onColl
         </nav>
 
         {/* Footer */}
-        <div className={`border-t border-sidebar-border py-3 ${collapsed ? 'px-2' : 'px-3'}`}>
+        <div className={`border-t border-sidebar-border py-3 flex flex-col gap-2 ${collapsed ? 'px-2' : 'px-3'}`}>
+          <button
+            type="button"
+            onClick={() => { navigate('/docs/overview'); if (sidebarOpen) onToggle(); }}
+            className={`sidebar-nav-item w-full ${collapsed ? 'justify-center px-0' : ''} ${
+              currentPath.startsWith('/docs') ? 'active' : ''
+            }`}
+            title={collapsed ? 'API docs' : undefined}
+          >
+            <FileTextIcon size={16} className={currentPath.startsWith('/docs') ? 'text-lime' : ''} />
+            {!collapsed && <span>API docs</span>}
+          </button>
           {!collapsed ? (
             <div className="saas-inset-sm px-3 py-2.5">
               <p className="text-[10px] font-mono uppercase tracking-[0.15em] text-text-muted mb-1">Workspace</p>

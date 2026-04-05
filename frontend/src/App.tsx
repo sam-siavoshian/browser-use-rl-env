@@ -9,20 +9,19 @@ import { StepTracker } from './components/StepTracker';
 import { PhaseIndicator } from './components/PhaseIndicator';
 import { ComparisonCard } from './components/ComparisonCard';
 import { TemplateSearchCard } from './components/TemplateSearchCard';
-import { Analogy } from './components/Analogy';
-import { Architecture } from './components/Architecture';
-import { LearningHistory } from './components/LearningHistory';
 import { ChatPage } from './pages/ChatPage';
+import { DocsLayout } from './pages/docs/DocsLayout';
 import { usePoller } from './hooks/usePoller';
 import { useTimer } from './hooks/useTimer';
 import { startCompare, startLearn, getTemplates } from './api';
 import type { Template, Phase } from './types';
 
-type View = 'chat' | 'chat_session' | 'learning' | 'racing' | 'results';
+type View = 'chat' | 'chat_session' | 'docs' | 'learning' | 'racing' | 'results';
 
 function pathToView(pathname: string): View {
   const p = pathname.replace(/\/+$/, '') || '/';
   if (p.startsWith('/chat/')) return 'chat_session';
+  if (p.startsWith('/docs')) return 'docs';
   if (p === '/rl/learn') return 'learning';
   if (p === '/rl/race') return 'racing';
   if (p === '/rl/results') return 'results';
@@ -47,7 +46,6 @@ function App() {
   const [rocketId, setRocketId] = useState<string | null>(null);
   const [learnId, setLearnId] = useState<string | null>(null);
   const [templates, setTemplates] = useState<Template[]>([]);
-  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
 
   const { status: baseStatus } = usePoller(baselineId);
   const { status: rocketStatus } = usePoller(rocketId);
@@ -73,17 +71,9 @@ function App() {
   }, [learnStatus?.agent_complete, learnStatus?.status]);
 
   useEffect(() => {
-    if (baseStatus?.status === 'complete' && rocketStatus?.status === 'complete') {
-      const t = setTimeout(() => navigate('/results'), 600);
-      return () => clearTimeout(t);
-    }
-  }, [baseStatus?.status, rocketStatus?.status, navigate]);
-
-
-  useEffect(() => {
     const p = location.pathname.replace(/\/+$/, '') || '/';
     const allowed = ['/', '/learn', '/race', '/results', '/rl/learn', '/rl/race', '/rl/results'];
-    if (!allowed.includes(p) && !p.startsWith('/chat/')) {
+    if (!allowed.includes(p) && !p.startsWith('/chat/') && !p.startsWith('/docs')) {
       navigate('/', { replace: true });
     }
   }, [location.pathname, navigate]);
@@ -154,6 +144,13 @@ function App() {
   const liveSpeedup = baseTimer.elapsedMs > 2000 && rocketTimer.elapsedMs > 200
     ? baseTimer.elapsedMs / rocketTimer.elapsedMs : null;
   const isChatView = view === 'chat' || view === 'chat_session';
+  const raceBothComplete = Boolean(
+    view === 'racing' &&
+      baselineId &&
+      rocketId &&
+      baseStatus?.status === 'complete' &&
+      rocketStatus?.status === 'complete',
+  );
 
   return (
     <div className="h-screen min-h-0 flex flex-col md:flex-row" style={{ background: '#09090b' }}>
@@ -166,10 +163,13 @@ function App() {
         onCollapse={setSidebarCollapsed}
       />
 
-      {/* Main content area */}
-      <div className={`flex-1 min-w-0 flex flex-col relative ${view === 'chat' ? 'overflow-y-auto' : 'overflow-hidden'}`}>
-        {/* Mobile top bar */}
-        <MobileTopBar onToggle={() => setSidebarOpen(!sidebarOpen)} />
+      {/* Main content area — only chat scrolls at this level; docs uses inner scroll so flex-1 height resolves */}
+      <div
+        className={`flex-1 min-h-0 min-w-0 flex flex-col relative ${
+          view === 'chat' ? 'overflow-y-auto' : 'overflow-hidden'
+        }`}
+      >
+        {view !== 'docs' && <MobileTopBar onToggle={() => setSidebarOpen(!sidebarOpen)} />}
 
         {/* Ambient glow */}
         <div className="fixed inset-0 pointer-events-none z-0">
@@ -184,57 +184,9 @@ function App() {
           </div>
         )}
 
-        {/* ═══ RL: IDLE VIEW (legacy landing) ═══ */}
-        {view === 'idle' && (
-          <div className="flex-1 flex flex-col relative z-10">
-            <div className="flex-1 flex flex-col items-center justify-start px-6 pt-12 sm:pt-16 pb-20 relative z-10">
-              {/* Hero */}
-              <div className="text-center mb-8">
-                <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-text-muted mb-4 anim-fade-up">
-                  Browser Automation
-                </p>
-                <h1 className="font-serif text-[52px] sm:text-[60px] leading-[1.05] tracking-[-0.02em] text-text italic anim-fade-up" style={{ animationDelay: '40ms' }}>
-                  Make browser-use<br />agents fly.
-                </h1>
-                <p className="text-[14px] text-text-dim mt-6 max-w-[420px] mx-auto leading-[1.7] anim-fade-up" style={{ animationDelay: '80ms' }}>
-                  <strong className="text-amber-400">Learn</strong> a task, then <strong className="text-lime">Race</strong> to watch Playwright
-                  blast through the known steps while the agent handles the rest.
-                </p>
-              </div>
-
-              {/* Task input */}
-              <div className="w-full flex flex-col items-center mb-12 anim-fade-up" style={{ animationDelay: '140ms' }}>
-                <TaskInput onRun={launch} onLearn={learn} isRunning={false} />
-
-                {searchingTask && (
-                  <div className="mt-4 w-full max-w-[520px]">
-                    <TemplateSearchCard
-                      task={searchingTask}
-                      onRace={startRace}
-                      onLearnInstead={() => learn(searchingTask)}
-                      onDismiss={() => setSearchingTask(null)}
-                    />
-                  </div>
-                )}
-              </div>
-
-              {/* Analogy */}
-              <div className="mt-6 anim-fade-up" style={{ animationDelay: '200ms' }}>
-                <Analogy />
-              </div>
-
-              {/* Architecture */}
-              <div className="mt-14 anim-fade-up" style={{ animationDelay: '260ms' }}>
-                <Architecture />
-              </div>
-
-              {/* Learned templates */}
-              {templates.length > 0 && (
-                <div className="mt-8 anim-fade-up" style={{ animationDelay: '300ms' }}>
-                  <LearningHistory templates={templates} onSelect={setSelectedTemplate} selectedId={selectedTemplate?.id} />
-                </div>
-              )}
-            </div>
+        {view === 'docs' && (
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative z-10 w-full">
+            <DocsLayout />
           </div>
         )}
 
@@ -296,7 +248,7 @@ function App() {
                           <p className="text-[12px] text-text-dim truncate">{t.pattern}</p>
                           {t.steps && t.steps.length > 0 && (
                             <div className="flex items-center gap-1.5 mt-2">
-                              {t.steps.slice(0, 8).map((step, i) => (
+                              {t.steps.slice(0, 8).map((step) => (
                                 <div
                                   key={step.id}
                                   className={`w-1.5 h-1.5 rounded-full ${
@@ -426,9 +378,13 @@ function App() {
               <div className="flex-1">
                 <TaskInput onRun={launch} isRunning={isRunning} onStop={reset} compact />
               </div>
-              <span className="flex items-center gap-1.5 text-[11px] font-mono text-lime flex-shrink-0">
-                <span className="w-[5px] h-[5px] rounded-full bg-lime dot-pulse" /> Live
-              </span>
+              {raceBothComplete ? (
+                <span className="text-[11px] font-mono text-text-muted flex-shrink-0">Ready</span>
+              ) : (
+                <span className="flex items-center gap-1.5 text-[11px] font-mono text-lime flex-shrink-0">
+                  <span className="w-[5px] h-[5px] rounded-full bg-lime dot-pulse" /> Live
+                </span>
+              )}
             </header>
             <div className="flex-1 grid grid-cols-[1fr_1px_1fr] overflow-hidden">
               {/* Baseline column */}
@@ -472,9 +428,20 @@ function App() {
                 </div>
               </div>
             </div>
-            <div className="flex items-center justify-between px-5 h-9 border-t border-border-subtle bg-surface/20 text-[11px] font-mono text-text-muted">
-              <span className="truncate max-w-sm">{currentTask}</span>
-              <span>{(baseStatus?.steps.length ?? 0) + (rocketStatus?.steps.length ?? 0)} steps</span>
+            <div className="flex items-center justify-between gap-4 px-5 min-h-9 py-2 border-t border-border-subtle bg-surface/20 text-[11px] font-mono text-text-muted">
+              <span className="truncate max-w-sm min-w-0">{currentTask}</span>
+              <div className="flex items-center gap-3 flex-shrink-0">
+                <span>{(baseStatus?.steps.length ?? 0) + (rocketStatus?.steps.length ?? 0)} steps</span>
+                {raceBothComplete && (
+                  <button
+                    type="button"
+                    onClick={() => navigate('/results')}
+                    className="h-8 px-5 rounded-lg text-[12px] font-medium font-sans bg-lime text-bg hover:brightness-110 transition-all saas-btn-primary"
+                  >
+                    Done
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         )}
