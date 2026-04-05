@@ -221,4 +221,4 @@ MIT
 
 ---
 
-Made with ⚡ and ❤️ at Dimond Hack UCSD 2026 by Sam Siavoshian
+Made with ⚡ and ❤️ at Diamond Hack UCSD 2026 by Sam Siavoshian
