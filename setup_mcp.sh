@@ -217,12 +217,12 @@ step_start "Registering with Claude Code"
 # Remove old registration silently
 claude mcp remove forged -s "$SCOPE" 2>/dev/null || true
 
-# Register
+# Register (name must come before -e flag)
 {
     claude mcp add \
         -s "$SCOPE" \
-        -e "FORGED_API_URL=${BACKEND_URL}" \
         forged \
+        -e "FORGED_API_URL=${BACKEND_URL}" \
         -- \
         "$PYTHON" "$MCP_SERVER_PATH"
 } &>/dev/null &
