@@ -25,6 +25,9 @@
   --color-amber-soft: rgba(255, 107, 53, 0.07);
   --color-sky: #38bdf8;
   --color-sky-soft: rgba(56, 189, 248, 0.07);
+
+  /* Ambient home trail — cool moonlight (not neon lime) */
+  --color-ambient-mist: #9eb6e8;
 }
 
 /* ── Base ────────────────────────────── */
@@ -244,4 +247,15 @@ body::after {
     inset 0 1px 3px 0 rgba(0, 0, 0, 0.15),
     inset 0 -2px 6px 0 rgba(255, 255, 255, 0.04),
     0 1px 0 0 rgba(255, 255, 255, 0.04);
+}
+
+/* ── Chat home: gooey cursor trail (refined, no muddy yellow-green) ─ */
+
+.home-trail-goo {
+  opacity: 0.68;
+  mix-blend-mode: plus-lighter;
+}
+
+.home-trail-pixel {
+  background-color: color-mix(in oklab, var(--color-ambient-mist) 26%, transparent);
 }

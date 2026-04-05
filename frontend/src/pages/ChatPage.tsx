@@ -4,14 +4,18 @@ import { ChatInput } from '../components/chat/ChatInput';
 import { ActionFeed } from '../components/chat/ActionFeed';
 import { SessionStats } from '../components/chat/SessionStats';
 import { ShiningText } from '../components/ui/shining-text';
+import { GooeyFilter, GOOEY_FILTER_ID } from '../components/ui/gooey-filter';
+import { PixelTrail } from '../components/ui/pixel-trail';
 import { BrowserEmbed } from '../components/BrowserEmbed';
 import { usePoller } from '../hooks/usePoller';
+import { useScreenSize } from '../hooks/use-screen-size';
 import { useTimer } from '../hooks/useTimer';
 import { startChat } from '../api';
 import { EXAMPLE_TASKS } from '../data/exampleTasks';
 import type { Phase } from '../types';
 
 export function ChatPage() {
+  const screenSize = useScreenSize();
   const { sessionId: urlSessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
   const [sessionId, setSessionId] = useState<string | null>(urlSessionId || null);
@@ -53,12 +57,30 @@ export function ChatPage() {
   // ═══ IDLE STATE ═══
   if (!sessionId) {
     return (
-      <div className="flex flex-col items-center justify-center h-full px-6 relative">
-        {/* Subtle radial glow behind the heading */}
-        <div className="absolute top-[20%] left-1/2 -translate-x-1/2 w-[500px] h-[400px] pointer-events-none"
-             style={{ background: 'radial-gradient(ellipse, rgba(200,255,0,0.025) 0%, transparent 70%)' }} />
+      <div className="flex flex-col items-center justify-center h-full min-h-0 px-6 relative overflow-hidden">
+        <GooeyFilter id={GOOEY_FILTER_ID} strength={4} />
+        <div
+          className="home-trail-goo absolute inset-0 z-0 pointer-events-auto"
+          style={{ filter: `url(#${GOOEY_FILTER_ID})` }}
+        >
+          <PixelTrail
+            pixelSize={screenSize.lessThan('md') ? 24 : 32}
+            fadeDuration={0}
+            delay={500}
+            pixelClassName="home-trail-pixel"
+          />
+        </div>
 
-        <div className="flex flex-col items-center gap-6 max-w-[680px] w-full relative z-10">
+        {/* Subtle radial glow behind the heading — cool moon, not lime wash */}
+        <div
+          className="absolute top-[18%] left-1/2 -translate-x-1/2 w-[min(560px,90vw)] h-[420px] pointer-events-none z-[1]"
+          style={{
+            background:
+              'radial-gradient(ellipse 80% 70% at 50% 40%, rgba(130, 165, 220, 0.045) 0%, rgba(90, 120, 180, 0.02) 45%, transparent 72%)',
+          }}
+        />
+
+        <div className="flex flex-col items-center gap-6 max-w-[680px] w-full relative z-10 pointer-events-none">
           {/* Heading */}
           <div className="text-center" style={{ animation: 'fade-up 0.5s cubic-bezier(0.16,1,0.3,1) both' }}>
             <h1
@@ -73,13 +95,18 @@ export function ChatPage() {
           </div>
 
           {/* Input */}
-          <div className="w-full" style={{ animation: 'fade-up 0.5s cubic-bezier(0.16,1,0.3,1) 80ms both' }}>
+          <div
+            className="w-full pointer-events-auto"
+            style={{ animation: 'fade-up 0.5s cubic-bezier(0.16,1,0.3,1) 80ms both' }}
+          >
             <ChatInput onSubmit={handleSubmit} />
           </div>
 
           {/* Example chips */}
-          <div className="flex flex-wrap justify-center gap-2"
-               style={{ animation: 'fade-up 0.5s cubic-bezier(0.16,1,0.3,1) 160ms both' }}>
+          <div
+            className="flex flex-wrap justify-center gap-2 pointer-events-auto"
+            style={{ animation: 'fade-up 0.5s cubic-bezier(0.16,1,0.3,1) 160ms both' }}
+          >
             {EXAMPLE_TASKS.map((ex) => (
               <button
                 key={ex.id}
