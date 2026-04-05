@@ -24,7 +24,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from src.models import TemplateStep
+from src.browser.agent_handoff import build_agent_handoff_prompt
+from src.models import RocketResult, TemplateStep
 
 load_dotenv()
 
@@ -205,7 +206,13 @@ async def _create_browser(session_id: str):
 # ---------------------------------------------------------------------------
 
 
-async def _run_agent(session_id: str, task: str, cdp_url: str, rocket_steps_done: int = 0):
+async def _run_agent(
+    session_id: str,
+    task: str,
+    cdp_url: str,
+    rocket_result: RocketResult | None = None,
+    step_summary: str | None = None,
+):
     """Run the browser-use agent on the cloud browser. Returns (history, bu_session).
 
     Always releases the CDP session in ``finally`` so browser-use does not try to
@@ -228,14 +235,9 @@ async def _run_agent(session_id: str, task: str, cdp_url: str, rocket_steps_done
         wait_for_network_idle_page_load_time=12.0,
     )
 
-    agent_task = task
-    if rocket_steps_done > 0:
-        agent_task = (
-            f"Continue this task: {task}\n\n"
-            f"The browser has already completed {rocket_steps_done} steps via Playwright automation. "
-            f"The page shows the result of those actions. "
-            f"Pick up from the current state and complete the remaining work."
-        )
+    agent_task, rocket_handoff, _handoff_branch = build_agent_handoff_prompt(
+        task, rocket_result, step_summary=step_summary
+    )
 
     _agent_step_clock: list[float] = [time.monotonic()]  # mutable container for closure
 
@@ -264,7 +266,7 @@ async def _run_agent(session_id: str, task: str, cdp_url: str, rocket_steps_done
         register_new_step_callback=on_step,
         # Disable URL auto-detection after rocket handoff — the browser is
         # already on the right page, re-navigating wastes ~8s.
-        directly_open_url=rocket_steps_done == 0,
+        directly_open_url=not rocket_handoff,
     )
     try:
         history = await agent.run()
@@ -285,6 +287,30 @@ def _extract_and_store_result(session_id: str, history) -> None:
             pass
     if result_text:
         _update(session_id, result=result_text)
+
+
+def _build_step_summary(filled_steps: list, rocket_result) -> str:
+    """Build a human-readable summary of what the rocket phase did.
+
+    This is passed to the agent so it knows which steps completed,
+    which were skipped, and which failed.
+    """
+    lines = []
+    for i, step in enumerate(filled_steps):
+        desc = step.description or step.action or f"Step {i}"
+        if i < len(rocket_result.step_outcomes):
+            outcome, reason = rocket_result.step_outcomes[i]
+            if outcome == "completed":
+                lines.append(f"  [DONE] Step {i}: {desc}")
+            elif outcome == "completed_after_retry":
+                lines.append(f"  [DONE after retry] Step {i}: {desc}")
+            elif outcome in ("skipped", "fallback_failed"):
+                lines.append(f"  [SKIPPED] Step {i}: {desc} — {reason}")
+            elif outcome == "aborted":
+                lines.append(f"  [FAILED] Step {i}: {desc} — {reason}")
+        else:
+            lines.append(f"  [NOT REACHED] Step {i}: {desc}")
+    return "\n".join(lines) if lines else ""
 
 
 # ---------------------------------------------------------------------------
@@ -457,7 +483,7 @@ async def _run_rocket(session_id: str, task: str) -> None:
 
         _update(session_id, phase="agent")
         _step(session_id, "Handing off to agent for dynamic steps...", "agent")
-        _history, bu_session = await _run_agent(session_id, task, cdp_url, rocket_result.steps_completed)
+        _history, bu_session = await _run_agent(session_id, task, cdp_url, rocket_result)
 
         elapsed = time.monotonic() * 1000 - start_ms
         _update(session_id, status="complete", phase="complete", duration_ms=elapsed, current_step="Done")
@@ -516,7 +542,35 @@ async def _run_chat(session_id: str, task: str) -> None:
             if param_summary:
                 _step(session_id, f"Parameters: {param_summary}", "playwright", action_type="agent_action")
 
-            filled_steps = _fill_parameters(match.steps, params, match.handoff_index)
+            # Step filter: determine which steps are relevant to this specific task
+            from src.matching.step_filter import filter_steps
+            filter_result = await filter_steps(
+                task=task,
+                task_pattern=match.task_pattern,
+                steps=match.steps,
+                parameters=params,
+                handoff_index=match.handoff_index,
+            )
+
+            if filter_result.skip_indices:
+                _step(
+                    session_id,
+                    f"Adapted: executing {len(filter_result.execute_indices)} of "
+                    f"{match.handoff_index + 1} steps "
+                    f"(skipping {len(filter_result.skip_indices)})",
+                    "playwright",
+                    action_type="agent_action",
+                    details={"skipped": filter_result.skip_indices, "reason": filter_result.reasoning},
+                )
+
+            # Filter steps to only those the LLM said to execute
+            filtered_steps = [
+                s for idx, s in enumerate(match.steps)
+                if idx in filter_result.execute_indices and idx <= match.handoff_index
+            ]
+            effective_handoff = len(filtered_steps) - 1 if filtered_steps else 0
+
+            filled_steps = _fill_parameters(filtered_steps, params, effective_handoff)
             mgr, browser, cdp_url = await _create_browser(session_id)
 
             _step(session_id, "Launching Playwright rocket...", "playwright", action_type="agent_action")
@@ -528,14 +582,24 @@ async def _run_chat(session_id: str, task: str) -> None:
                 if i < len(filled_steps):
                     action = filled_steps[i].action or "step"
                     desc = filled_steps[i].description or action
+                    # Include outcome info if step was skipped or retried
+                    if i < len(rocket_result.step_outcomes):
+                        outcome, reason = rocket_result.step_outcomes[i]
+                        if outcome == "skipped":
+                            desc = f"[SKIPPED] {desc}: {reason}"
+                        elif outcome == "completed_after_retry":
+                            desc = f"[RETRIED] {desc}"
                     _step(session_id, desc, "playwright", timing * 1000, action_type=action)
 
             if rocket_result.aborted:
                 _step(session_id, f"Rocket aborted: {rocket_result.abort_reason}", "playwright")
 
+            # Build step summary for smarter agent handoff
+            step_summary = _build_step_summary(filled_steps, rocket_result)
+
             _update(session_id, phase="agent")
             _step(session_id, "Handing off to agent...", "agent", action_type="agent_action")
-            history, bu_session = await _run_agent(session_id, task, cdp_url, rocket_result.steps_completed)
+            history, bu_session = await _run_agent(session_id, task, cdp_url, rocket_result, step_summary=step_summary)
 
             # Extract agent's final answer
             _extract_and_store_result(session_id, history)

@@ -114,6 +114,10 @@ class RocketResult:
     abort_reason: str | None = None
     current_url: str | None = None
     step_timings: list[float] = field(default_factory=list)
+    skipped_steps: list[int] = field(default_factory=list)
+    step_outcomes: list[tuple[str, str | None]] = field(default_factory=list)
+    # step_outcomes entries: ("completed", None), ("skipped", reason), ("aborted", reason),
+    # ("completed_after_retry", None), ("fallback_failed", reason)
 
 
 @dataclass

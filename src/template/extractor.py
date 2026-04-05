@@ -209,9 +209,12 @@ async def extract_parameters(
             name = p.name
             required = p.required
         if required and (name not in params or params[name] is None):
-            raise ValueError(
-                f"Required parameter '{name}' could not be extracted from task: {task}"
+            logger.warning(
+                "Required parameter '%s' could not be extracted from task: %s "
+                "(will attempt execution without it — step filter may skip dependent steps)",
+                name, task[:80],
             )
+            params.setdefault(name, None)
 
     logger.info("Extracted parameters: %s", params)
     return params

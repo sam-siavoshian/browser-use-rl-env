@@ -231,6 +231,8 @@ class PlaywrightRocket:
         try:
             pw, browser, page = await _connect_playwright(cdp_url)
             completed = 0
+            skipped_steps: list[int] = []
+            step_outcomes: list[tuple[str, str | None]] = []
 
             for i, step in enumerate(template_steps):
                 step_start = time.monotonic()
@@ -238,6 +240,7 @@ class PlaywrightRocket:
                     await _execute_step(page, step, i)
                     step_timings.append(time.monotonic() - step_start)
                     completed += 1
+                    step_outcomes.append(("completed", None))
                     logger.info(
                         "Step %d/%d completed in %.0fms: %s",
                         i + 1,
@@ -247,7 +250,40 @@ class PlaywrightRocket:
                     )
                 except RocketAbortError as e:
                     step_timings.append(time.monotonic() - step_start)
+                    strategy = step.on_failure
+
+                    # Retry: try once more after a short delay
+                    if strategy == "retry":
+                        try:
+                            import asyncio
+                            await asyncio.sleep(0.5)
+                            await _execute_step(page, step, i)
+                            step_timings[-1] = time.monotonic() - step_start
+                            completed += 1
+                            step_outcomes.append(("completed_after_retry", None))
+                            logger.info("Step %d succeeded on retry", i)
+                            continue
+                        except RocketAbortError:
+                            pass  # fall through to abort
+
+                    # Continue: skip this step, move to next
+                    if strategy == "continue":
+                        logger.warning("Step %d failed (continuing): %s", i, e.reason)
+                        skipped_steps.append(i)
+                        step_outcomes.append(("skipped", e.reason))
+                        continue
+
+                    # Try_fallback: selectors already tried in _try_selector,
+                    # so if we're here all failed. Continue anyway.
+                    if strategy == "try_fallback":
+                        logger.warning("Step %d: all fallbacks failed (continuing): %s", i, e.reason)
+                        skipped_steps.append(i)
+                        step_outcomes.append(("fallback_failed", e.reason))
+                        continue
+
+                    # Default: abort
                     logger.warning("Rocket abort at step %d: %s", i, e.reason)
+                    step_outcomes.append(("aborted", e.reason))
                     return RocketResult(
                         steps_completed=completed,
                         total_steps=len(template_steps),
@@ -256,6 +292,8 @@ class PlaywrightRocket:
                         abort_reason=e.reason,
                         current_url=page.url,
                         step_timings=step_timings,
+                        skipped_steps=skipped_steps,
+                        step_outcomes=step_outcomes,
                     )
 
             current_url = page.url
@@ -266,6 +304,8 @@ class PlaywrightRocket:
                 aborted=False,
                 current_url=current_url,
                 step_timings=step_timings,
+                skipped_steps=skipped_steps,
+                step_outcomes=step_outcomes,
             )
 
         finally:
