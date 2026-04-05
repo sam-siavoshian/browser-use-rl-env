@@ -1,4 +1,4 @@
-# Forged
+# Forged ⚒️
 
 Browser automation that learns. An MCP server that makes AI agents faster at repeated browser tasks by recording what works and replaying deterministic steps via Playwright.
 
@@ -16,7 +16,7 @@ Run 2: 9 Playwright steps + 1 agent step.                     8.8s  (5.4x faster
 Run 5: 80% deterministic, 20% reasoning.                      ~3s
 ```
 
-## Install
+## 📦 Install
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/sam-siavoshian/browser-use-rl-env/main/setup_mcp.sh | bash
@@ -24,7 +24,7 @@ curl -fsSL https://raw.githubusercontent.com/sam-siavoshian/browser-use-rl-env/m
 
 The wizard finds your Python, installs dependencies, and registers Forged with Claude Code. Works with any MCP-compatible assistant (Cursor, Windsurf, etc).
 
-## How it works
+## 🔍 How it works
 
 ### The matching pipeline
 
@@ -99,7 +99,7 @@ Forged uses Browser Use's BaaS API for cloud browsers instead of local Playwrigh
 
 Rate limits are handled with exponential backoff: 5s → 10s → 20s → 40s → 80s → 120s (capped), with jitter, up to 6 retries.
 
-## Architecture
+## 🏗 Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -133,7 +133,7 @@ Rate limits are handled with exponential backoff: 5s → 10s → 20s → 40s →
 └─────────────────────────────────────────────────────────┘
 ```
 
-## MCP Tools
+## 🛠 MCP Tools
 
 ### `run_browser_task`
 
@@ -205,7 +205,7 @@ mcp_server.py           MCP server (2 tools, stdio transport)
 setup_mcp.sh            One-command setup wizard
 ```
 
-## Tech stack
+## ⚙️ Tech stack
 
 - **Backend**: Python 3.11+, FastAPI, Uvicorn
 - **Browser automation**: Playwright (rocket engine), Browser Use (agent), Browser Use BaaS (cloud browsers)
