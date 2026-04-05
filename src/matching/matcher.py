@@ -16,6 +16,7 @@ from typing import Any
 
 import numpy as np
 
+from .. import config
 from ..db.embeddings import build_query_embedding_text, generate_embedding
 from .action_type import classify_action_type
 from .domain import extract_domain
@@ -75,17 +76,17 @@ async def _search_via_pgvector(
         embedding_str = f"[{','.join(str(x) for x in embedding)}]"
 
         rows = await pool.fetch(
-            """
+            f"""
             SELECT id, task_pattern, steps, handoff_index, parameters, confidence,
                    action_type, domain,
                    1 - (embedding <=> $1::vector) AS similarity
             FROM task_templates
-            WHERE confidence >= 0.2
+            WHERE confidence >= {config.DB_MIN_CONFIDENCE}
               AND (domain = $2 OR domain LIKE '%.' || $2 OR $2 LIKE '%.' || domain
                    OR position($2 in domain) > 0 OR position(domain in $2) > 0)
               AND ($3::text IS NULL OR action_type = $3)
             ORDER BY embedding <=> $1::vector ASC
-            LIMIT 5
+            LIMIT {config.DB_RESULT_LIMIT}
             """,
             embedding_str,
             domain,
@@ -113,7 +114,7 @@ async def _search_via_rest(
     query = client.table("task_templates").select(
         "id, task_pattern, steps, handoff_index, parameters, confidence, "
         "action_type, domain, embedding"
-    ).gte("confidence", 0.2)
+    ).gte("confidence", config.DB_MIN_CONFIDENCE)
     result = query.execute()
 
     # Filter by domain
@@ -145,7 +146,7 @@ async def _search_via_rest(
         scored.append(t)
 
     scored.sort(key=lambda x: x["similarity"], reverse=True)
-    return scored[:5]
+    return scored[:config.DB_RESULT_LIMIT]
 
 
 async def find_matching_template(
