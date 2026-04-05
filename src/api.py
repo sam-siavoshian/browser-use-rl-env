@@ -556,9 +556,26 @@ async def _run_rocket(session_id: str, task: str) -> None:
                 "playwright",
             )
 
-        _update(session_id, phase="agent")
-        _step(session_id, "Handing off to agent for dynamic steps...", "agent")
-        _history, bu_session = await _run_agent(session_id, task, cdp_url, rocket_result)
+        # FAST PATH: skip agent if all steps done and page content available
+        if (not rocket_result.aborted
+                and rocket_result.page_content
+                and rocket_result.steps_completed >= len(filled_steps)):
+            _step(session_id, "All steps complete. Extracting answer directly...",
+                  "playwright", action_type="extract")
+            try:
+                answer = await _extract_answer_from_page(task, rocket_result.page_content)
+                _update(session_id, result=answer, agent_complete=True)
+                _step(session_id, "Answer extracted (no agent needed)",
+                      "playwright", action_type="done")
+            except Exception as extract_err:
+                logger.warning("Fast extraction failed in _run_rocket, falling back: %s", extract_err)
+                _update(session_id, phase="agent")
+                _step(session_id, "Handing off to agent...", "agent")
+                _history, bu_session = await _run_agent(session_id, task, cdp_url, rocket_result)
+        else:
+            _update(session_id, phase="agent")
+            _step(session_id, "Handing off to agent for dynamic steps...", "agent")
+            _history, bu_session = await _run_agent(session_id, task, cdp_url, rocket_result)
 
         elapsed = time.monotonic() * 1000 - start_ms
         _update(session_id, status="complete", phase="complete", duration_ms=elapsed, current_step="Done")
@@ -714,12 +731,41 @@ async def _run_chat(session_id: str, task: str) -> None:
             # Build step summary for smarter agent handoff
             step_summary = _build_step_summary(filled_steps, rocket_result)
 
-            # FAST PATH: if all steps completed and page content captured,
-            # skip the full agent (~35s) and use Haiku extraction (~1-2s)
-            if (not rocket_result.aborted
+            # ── Extraction tier system (fastest → slowest) ──
+            #
+            # TIER 0: Direct DOM extraction via stored CSS selectors (~200ms, zero LLM)
+            #         Requires: extraction_selectors on template + high confidence + no abort
+            # TIER 1: Haiku extraction from captured page content (~1-2s, one Haiku call)
+            #         Requires: all steps completed + page_content captured
+            # TIER 2: Full agent handoff (~5-15s, multiple Sonnet calls)
+            #         Fallback for everything else
+
+            extraction_done = False
+
+            # TIER 0: Direct DOM extraction — zero LLM calls
+            if (match.extraction_selectors
+                    and match.similarity >= 0.90
+                    and not rocket_result.aborted
+                    and rocket_result.steps_completed > 0):
+                _step(session_id, "Attempting direct DOM extraction...", "playwright", action_type="extract")
+                from src.browser.direct_extract import direct_extract
+                extracted = await direct_extract(cdp_url, match.extraction_selectors)
+                if extracted:
+                    result_text = "\n".join(f"**{k}**: {v}" for k, v in extracted.items())
+                    _update(session_id, result=result_text, agent_complete=True,
+                            agent_duration_ms=(time.monotonic() * 1000 - start_ms))
+                    _step(session_id, f"Extracted {len(extracted)} fields directly (no LLM needed)",
+                          "playwright", 200, action_type="done")
+                    extraction_done = True
+                else:
+                    logger.info("Direct extraction returned None, trying next tier")
+
+            # TIER 1: Haiku extraction from page content (~1-2s)
+            if (not extraction_done
+                    and not rocket_result.aborted
                     and rocket_result.page_content
                     and rocket_result.steps_completed >= len(filled_steps)):
-                _step(session_id, "All steps complete. Extracting answer directly...",
+                _step(session_id, "Extracting answer from page content...",
                       "playwright", action_type="extract")
                 try:
                     answer = await _extract_answer_from_page(task, rocket_result.page_content)
@@ -727,14 +773,12 @@ async def _run_chat(session_id: str, task: str) -> None:
                             agent_duration_ms=(time.monotonic() * 1000 - start_ms))
                     _step(session_id, "Answer extracted (no agent needed)",
                           "playwright", action_type="done")
+                    extraction_done = True
                 except Exception as extract_err:
-                    logger.warning("Fast extraction failed, falling back to agent: %s", extract_err)
-                    _update(session_id, phase="agent")
-                    _step(session_id, "Handing off to agent...", "agent", action_type="agent_action")
-                    history, bu_session = await _run_agent(session_id, task, cdp_url, rocket_result, step_summary=step_summary)
-                    _extract_and_store_result(session_id, history)
-            else:
-                # SLOW PATH: partial completion or no page content — full agent
+                    logger.warning("Haiku extraction failed: %s", extract_err)
+
+            # TIER 2: Full agent handoff (fallback)
+            if not extraction_done:
                 _update(session_id, phase="agent")
                 _step(session_id, "Handing off to agent...", "agent", action_type="agent_action")
                 history, bu_session = await _run_agent(session_id, task, cdp_url, rocket_result, step_summary=step_summary)
