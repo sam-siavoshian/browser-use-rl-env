@@ -28,6 +28,7 @@ export function ExampleBrandIcon({ id }: { id: string }) {
       return <SiWikipedia className={`${ICON} text-white/90`} aria-hidden />;
     case 'hn-story':
       return <FaHackerNews className={`${ICON} text-[#FF6600]`} aria-hidden />;
+    case 'github-search':
     case 'github-trending':
     case 'github-repo':
       return <SiGithub className={`${ICON} text-white/90`} aria-hidden />;

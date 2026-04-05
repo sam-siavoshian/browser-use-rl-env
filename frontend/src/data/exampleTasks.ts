@@ -18,10 +18,10 @@ export const EXAMPLE_TASKS: ExampleTask[] = [
       'Go to news.ycombinator.com, click on the top story on the front page, then extract the title, the URL it links to, and the top 3 comments.',
   },
   {
-    id: 'github-trending',
-    label: 'Check GitHub trending',
+    id: 'github-search',
+    label: 'Search GitHub repos',
     task:
-      'Go to github.com/trending, find the #1 trending repository, and report its name, star count, and description.',
+      'Go to github.com, search for "fastapi", open the first repository result, and report its star count, latest release version, and description.',
   },
   {
     id: 'recipe-lookup',
