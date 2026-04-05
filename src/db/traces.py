@@ -1,6 +1,6 @@
 """Execution trace recording.
 
-Records every task execution (both forge and baseline vanilla runs)
+Records every task execution (both Forged path and baseline vanilla runs)
 into the execution_traces table. Falls back to Supabase REST when
 direct PostgreSQL is unavailable (e.g. campus WiFi blocking connections).
 """

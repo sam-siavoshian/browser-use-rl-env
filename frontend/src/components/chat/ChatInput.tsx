@@ -10,7 +10,7 @@ import { CHAT_INPUT_MAX_HEIGHT_PX, PRIMARY_INPUT_MIN_HEIGHT_PX } from '../../ui/
 import { useRotatingTypewriter } from '../../hooks/useRotatingTypewriter';
 
 const CHAT_PLACEHOLDER_PHRASES = [
-  'Ask Forge to inspect a site',
+  'Ask Forged to inspect a site',
   'Research a topic in the browser',
   'Compare products across pages',
   'Summarize what happened in a flow',

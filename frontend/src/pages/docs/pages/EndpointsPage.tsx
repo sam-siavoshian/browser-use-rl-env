@@ -10,7 +10,7 @@ export function EndpointsPage() {
             method="POST"
             path="/chat"
             res='{ "session_id": string }'
-            note="Auto mode: high-confidence template match → Forge (Playwright + agent handoff); otherwise full agent then auto-learn template (best-effort)."
+            note="Auto mode: high-confidence template match → Forged (Playwright + agent handoff); otherwise full agent then auto-learn template (best-effort)."
           />
           <EndpointRow
             method="GET"
@@ -34,7 +34,7 @@ export function EndpointsPage() {
             method="POST"
             path="/compare"
             res='{ "baseline_session_id", "rocket_session_id" }'
-            note="Starts baseline and forge runs in parallel for the same task."
+            note="Starts baseline and Forged runs in parallel for the same task."
           />
           <EndpointRow
             method="POST"

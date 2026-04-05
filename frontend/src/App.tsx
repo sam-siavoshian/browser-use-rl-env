@@ -531,7 +531,7 @@ function App() {
             <header className="flex-shrink-0 flex items-center gap-4 px-5 h-12 border-b border-border-subtle bg-surface/30 backdrop-blur-sm">
               <div className="flex items-center gap-2.5 flex-shrink-0">
                 <div className="w-[7px] h-[7px] rounded-full bg-lime" />
-                <span className="text-[13px] font-medium text-text-dim">Forge</span>
+                <span className="text-[13px] font-medium text-text-dim">Forged</span>
               </div>
               <div className="flex-1">
                 <TaskInput onRun={launch} isRunning={isRunning} onStop={reset} compact />
@@ -549,7 +549,7 @@ function App() {
               <div className="flex flex-col p-4 overflow-hidden">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2.5">
-                    <span className="text-[13px] font-medium text-text-dim">Without Forge</span>
+                    <span className="text-[13px] font-medium text-text-dim">Without</span>
                     <PhaseIndicator phase={basePh} />
                   </div>
                   <Timer
@@ -589,7 +589,7 @@ function App() {
               <div className="flex flex-col p-4 overflow-hidden">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2.5">
-                    <span className="text-[13px] font-medium text-lime">With Forge</span>
+                    <span className="text-[13px] font-medium text-lime">Forged</span>
                     <PhaseIndicator phase={rocketPh} />
                   </div>
                   <Timer

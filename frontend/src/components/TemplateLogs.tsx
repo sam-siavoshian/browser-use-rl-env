@@ -144,7 +144,7 @@ function TemplateLogCard({ template: t }: { template: Template }) {
               </p>
               <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-[11px]">
                 <div className="flex justify-between">
-                  <span className="text-text-muted">Forge (rocket)</span>
+                  <span className="text-text-muted">Forged run</span>
                   <span className="text-text font-mono">{formatMs(t.avg_rocket_duration_ms)}</span>
                 </div>
                 <div className="flex justify-between">
@@ -152,7 +152,7 @@ function TemplateLogCard({ template: t }: { template: Template }) {
                   <span className="text-text font-mono">{formatMs(t.avg_agent_duration_ms)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-text-muted">Total (forge)</span>
+                  <span className="text-text-muted">Total (forged)</span>
                   <span className="text-text font-mono">{formatMs(t.avg_total_duration_ms)}</span>
                 </div>
                 <div className="flex justify-between">

@@ -31,7 +31,7 @@ export function BenchmarksPage() {
   const avgBaselineMs = races.length > 0
     ? races.reduce((sum, r) => sum + r.baseline_duration_ms, 0) / races.length
     : 0;
-  const avgForgeMs = races.length > 0
+  const avgForgedMs = races.length > 0
     ? races.reduce((sum, r) => sum + r.rocket_duration_ms, 0) / races.length
     : 0;
 
@@ -44,17 +44,17 @@ export function BenchmarksPage() {
         return sum + baselineSteps;
       }, 0) / races.length
     : 0;
-  const avgForgeAgentSteps = races.length > 0
+  const avgForgedAgentSteps = races.length > 0
     ? races.reduce((sum, r) => {
-        const forgeSteps = r.rocket_steps ?? 0;
+        const forgedPwSteps = r.rocket_steps ?? 0;
         // Agent only runs for the non-forged portion
-        const agentTimeMs = r.rocket_duration_ms - (forgeSteps * 200); // ~200ms per PW step
+        const agentTimeMs = r.rocket_duration_ms - (forgedPwSteps * 200); // ~200ms per PW step
         const agentSteps = Math.max(1, Math.ceil(agentTimeMs / 3000));
         return sum + agentSteps;
       }, 0) / races.length
     : 0;
   const costReduction = avgBaselineSteps > 0
-    ? ((1 - avgForgeAgentSteps / avgBaselineSteps) * 100)
+    ? ((1 - avgForgedAgentSteps / avgBaselineSteps) * 100)
     : 0;
 
   return (
@@ -67,7 +67,7 @@ export function BenchmarksPage() {
           </p>
           <h1 className="text-[28px] font-serif italic text-text">Benchmarks</h1>
           <p className="text-[13px] text-text-dim mt-2">
-            Every race is recorded. See how Forge compares to vanilla browser-use over time.
+            Every race is recorded. See how Forged compares to vanilla browser-use over time.
           </p>
         </div>
 
@@ -83,7 +83,7 @@ export function BenchmarksPage() {
               }}
             >
               <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-text-muted mb-3">
-                Forge vs browser-use
+                Forged vs browser-use
               </p>
               <p className="font-serif italic text-[56px] leading-none text-lime tracking-tight">
                 {avgSpeedup.toFixed(1)}x
@@ -104,7 +104,7 @@ export function BenchmarksPage() {
             {/* Detailed breakdown */}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-8">
               <StatCard label="Avg browser-use" value={`${(avgBaselineMs / 1000).toFixed(1)}s`} sub="vanilla agent" />
-              <StatCard label="Avg Forge" value={`${(avgForgeMs / 1000).toFixed(1)}s`} sub="forged + agent" accent />
+              <StatCard label="Avg Forged" value={`${(avgForgedMs / 1000).toFixed(1)}s`} sub="forged + agent" accent />
               <StatCard label="Forged steps" value={`${totalForgedSteps}`} sub={`0 LLM calls (${totalForgedSteps > 0 ? '~' + (totalForgedSteps * 0.2).toFixed(0) + 's' : '0s'} total)`} accent />
             </div>
 
@@ -121,7 +121,7 @@ export function BenchmarksPage() {
                 <span className="text-[18px]">$</span>
                 <div>
                   <p className="text-[12px] text-text-dim">
-                    Forge skips <span className="text-lime font-mono font-medium">~{costReduction.toFixed(0)}%</span> of LLM calls
+                    Forged skips <span className="text-lime font-mono font-medium">~{costReduction.toFixed(0)}%</span> of LLM calls
                     by replaying forged steps via Playwright instead of reasoning through them.
                   </p>
                   <p className="text-[10px] text-text-muted mt-0.5">

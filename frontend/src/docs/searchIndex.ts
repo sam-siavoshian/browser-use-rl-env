@@ -11,7 +11,7 @@ export const DOC_SEARCH_INDEX: DocSearchItem[] = [
     id: 'overview',
     title: 'Overview',
     path: '/docs/overview',
-    keywords: ['forge', 'browser', 'playwright', 'template', 'self-improve', 'learn', 'cdp', 'agent'],
+    keywords: ['forged', 'forge', 'browser', 'playwright', 'template', 'self-improve', 'learn', 'cdp', 'agent'],
   },
   {
     id: 'integration',
@@ -23,7 +23,7 @@ export const DOC_SEARCH_INDEX: DocSearchItem[] = [
     id: 'endpoints',
     title: 'Endpoints',
     path: '/docs/endpoints',
-    keywords: ['api', 'post', 'get', 'delete', 'chat', 'learn', 'compare', 'baseline', 'forge', 'health', 'templates'],
+    keywords: ['api', 'post', 'get', 'delete', 'chat', 'learn', 'compare', 'baseline', 'forged', 'forge', 'health', 'templates'],
   },
   {
     id: 'models',
@@ -42,7 +42,7 @@ export const DOC_SEARCH_INDEX: DocSearchItem[] = [
     id: 'ep-chat',
     title: 'POST /chat',
     path: '/docs/endpoints',
-    keywords: ['chat', 'auto', 'forge', 'baseline'],
+    keywords: ['chat', 'auto', 'forged', 'forge', 'baseline'],
   },
   {
     id: 'ep-status',

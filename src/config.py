@@ -1,4 +1,4 @@
-"""Centralized configuration for the Forge system.
+"""Centralized configuration for the Forged system.
 
 All tunable constants are defined here and read from environment variables
 with sensible defaults. No magic numbers should exist outside this file.

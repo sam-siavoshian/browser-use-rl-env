@@ -1,6 +1,6 @@
 /**
  * Architecture — accurate system diagram showing:
- *   RACE flow: Task → 3-layer match → Forge (Playwright/CDP) → Agent Handoff → Result
+ *   RACE flow: Task → 3-layer match → Forged (Playwright/CDP) → Agent Handoff → Result
  *   LEARN flow: Task → Full Agent → Trace Extraction Pipeline → pgvector Store
  */
 
@@ -47,7 +47,7 @@ export function Architecture() {
 /* ═══════════════════════════════════════════
    RACE MODE DIAGRAM
    Task → Template Search (3-layer) → Match?
-     YES → Forge (Playwright/CDP) → Agent Handoff → Result
+     YES → Forged (Playwright/CDP) → Agent Handoff → Result
      NO  → Full Agent → Result
    ═══════════════════════════════════════════ */
 
@@ -76,7 +76,7 @@ function RaceDiagram() {
           <line x1="375" y1="174" x2="490" y2="174" stroke={SR} strokeWidth="1.25" />
           <line x1="490" y1="174" x2="490" y2="204" stroke={SR} strokeWidth="1.25" />
 
-          {/* Forge → Handoff */}
+          {/* Forged path → Handoff */}
           <line x1="170" y1="296" x2="170" y2="324" stroke={SL} strokeWidth="1.25" />
 
           {/* Handoff → Result (left path) */}
@@ -135,7 +135,7 @@ function RaceDiagram() {
           </div>
         </div>
 
-        {/* LEFT: Forge Phase */}
+        {/* LEFT: Forged path */}
         <N left={80} top={204} w={180} h={92} border="rgba(200,255,0,0.18)">
           <span className="text-[10px] font-mono text-lime/75 tracking-widest font-semibold">FORGED PATH</span>
           <span className="text-[10px] text-text-dim mt-1 leading-snug">Playwright replays fixed +<br/>parameterized steps via CDP</span>

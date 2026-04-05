@@ -68,7 +68,7 @@ export function ComparisonCard({ baselineDurationMs, rocketDurationMs, onReset }
                   }}
                 />
               </div>
-              <span className="w-14 text-[11px] text-lime">Boosted</span>
+              <span className="w-14 text-[11px] text-lime">Forged</span>
             </div>
           </div>
         )}

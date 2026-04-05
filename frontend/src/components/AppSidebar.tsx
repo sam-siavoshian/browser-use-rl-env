@@ -75,7 +75,7 @@ export function AppSidebar({ templates, sidebarOpen, onToggle, collapsed, onColl
               <FlameIcon size={14} className="text-lime" />
             </div>
             {!collapsed && (
-              <span className="text-[14px] font-semibold text-text tracking-tight">Forge</span>
+              <span className="text-[14px] font-semibold text-text tracking-tight">Forged</span>
             )}
           </button>
           <button
@@ -355,7 +355,7 @@ export function MobileTopBar({ onToggle }: { onToggle: () => void }) {
         <div className="w-6 h-6 rounded-md bg-lime/10 flex items-center justify-center">
           <FlameIcon size={12} className="text-lime" />
         </div>
-        <span className="text-[13px] font-semibold text-text">Forge</span>
+        <span className="text-[13px] font-semibold text-text">Forged</span>
       </div>
     </div>
   );
