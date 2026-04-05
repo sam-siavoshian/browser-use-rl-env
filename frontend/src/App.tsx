@@ -152,16 +152,20 @@ function App() {
       rocketStatus?.status === 'complete',
   );
 
+  /** Docs uses its own sidebar only — hide Rocket chrome to avoid two sidebars. */
+  const showAppChrome = view !== 'docs';
+
   return (
     <div className="h-screen min-h-0 flex flex-col md:flex-row" style={{ background: '#09090b' }}>
-      {/* Sidebar */}
-      <AppSidebar
-        templates={templates}
-        sidebarOpen={sidebarOpen}
-        onToggle={() => setSidebarOpen(!sidebarOpen)}
-        collapsed={sidebarCollapsed}
-        onCollapse={setSidebarCollapsed}
-      />
+      {showAppChrome && (
+        <AppSidebar
+          templates={templates}
+          sidebarOpen={sidebarOpen}
+          onToggle={() => setSidebarOpen(!sidebarOpen)}
+          collapsed={sidebarCollapsed}
+          onCollapse={setSidebarCollapsed}
+        />
+      )}
 
       {/* Main content area — only chat scrolls at this level; docs uses inner scroll so flex-1 height resolves */}
       <div
@@ -169,7 +173,7 @@ function App() {
           view === 'chat' ? 'overflow-y-auto' : 'overflow-hidden'
         }`}
       >
-        {view !== 'docs' && <MobileTopBar onToggle={() => setSidebarOpen(!sidebarOpen)} />}
+        {showAppChrome && <MobileTopBar onToggle={() => setSidebarOpen(!sidebarOpen)} />}
 
         {/* Ambient glow */}
         <div className="fixed inset-0 pointer-events-none z-0">
