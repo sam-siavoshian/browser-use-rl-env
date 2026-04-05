@@ -56,6 +56,18 @@ def _domain_matches(stored: str, query: str) -> bool:
 
 _pgvector_available: bool | None = None  # Cached after first attempt
 
+# In-memory template cache: (domain, action_type) → TemplateMatch.
+# Survives across requests while the server is running. Cleared on restart.
+# This lets the second MCP call skip the entire matching pipeline.
+_template_cache: dict[tuple[str, str | None], TemplateMatch] = {}
+
+
+def cache_template(match: TemplateMatch) -> None:
+    """Populate the in-memory template cache (called after auto-learn too)."""
+    key = (match.domain, match.action_type)
+    _template_cache[key] = match
+    logger.info("Template cached: domain=%s action_type=%s", match.domain, match.action_type)
+
 
 async def _search_via_pgvector(
     embedding: list[float], domain: str, action_type: str | None
@@ -185,6 +197,16 @@ async def find_matching_template(
     action_type = classify_action_type(task_description)
     logger.info("Matching: domain=%s action_type=%s", domain, action_type)
 
+    # Fast path: check in-memory cache before hitting embeddings/DB
+    cache_key = (domain, action_type)
+    if cache_key in _template_cache:
+        cached = _template_cache[cache_key]
+        logger.info(
+            "Cache hit: domain=%s action_type=%s template=%s (skipping embedding search)",
+            domain, action_type, cached.template_id[:8],
+        )
+        return cached
+
     # Layer 3: Embedding similarity search
     query_text = build_query_embedding_text(
         task_description=task_description,
@@ -249,7 +271,7 @@ async def find_matching_template(
         except (json.JSONDecodeError, TypeError):
             extraction_selectors = None
 
-    return TemplateMatch(
+    result = TemplateMatch(
         template_id=str(row["id"]),
         task_pattern=row["task_pattern"],
         steps=steps,
@@ -263,3 +285,8 @@ async def find_matching_template(
         needs_verification=needs_verification,
         extraction_selectors=extraction_selectors,
     )
+
+    # Cache for instant reuse on next request
+    cache_template(result)
+
+    return result

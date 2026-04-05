@@ -926,6 +926,23 @@ async def _run_chat(session_id: str, task: str) -> None:
                 db_dict = template_to_db_format(template)
                 template_id = await create_template(**db_dict)
                 _step(session_id, f"Template learned! (ID: {template_id[:8]}...)", "agent", action_type="done")
+
+                # Populate in-memory cache so the next MCP call is instant
+                from src.matching.matcher import TemplateMatch, cache_template
+                cache_template(TemplateMatch(
+                    template_id=template_id,
+                    task_pattern=db_dict.get("task_pattern", task),
+                    steps=db_dict.get("steps", []),
+                    handoff_index=db_dict.get("handoff_index", 0) or 0,
+                    parameters=db_dict.get("parameters", []),
+                    similarity=1.0,
+                    confidence=db_dict.get("confidence", 0.5),
+                    confidence_band="very_high",
+                    domain=db_dict.get("domain", ""),
+                    action_type=db_dict.get("action_type", "unknown"),
+                    needs_verification=False,
+                    extraction_selectors=db_dict.get("extraction_selectors"),
+                ))
             except Exception as learn_err:
                 logger.warning("Auto-learn failed (non-fatal): %s", learn_err)
 
