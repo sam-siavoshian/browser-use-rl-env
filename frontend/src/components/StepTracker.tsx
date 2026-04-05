@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Step, Phase } from '../types';
 
 interface StepTrackerProps {
@@ -12,6 +12,124 @@ interface StepTrackerProps {
 function formatDuration(ms: number): string {
   if (ms < 1000) return `${Math.round(ms)}ms`;
   return `${(ms / 1000).toFixed(1)}s`;
+}
+
+/** Human-readable labels for detail fields */
+const DETAIL_LABELS: Record<string, string> = {
+  thinking: 'Thinking',
+  evaluation: 'Evaluation',
+  memory: 'Memory',
+  actions: 'Actions',
+  url: 'URL',
+  page_title: 'Page',
+  domain: 'Domain',
+  action_type: 'Type',
+  pattern: 'Pattern',
+  classification: 'Classification',
+  total_steps: 'Total Steps',
+  fixed_steps: 'Fixed (Playwright)',
+  parameterized_steps: 'Parameterized',
+  dynamic_steps: 'Dynamic (Agent)',
+  handoff_index: 'Handoff At',
+  template_id: 'Template ID',
+  playwright_steps: 'Playwright Steps',
+  agent_steps: 'Agent Steps',
+  selector: 'Selector',
+  parameter: 'Parameter',
+  reasoning: 'Reasoning',
+};
+
+const HIDDEN_FIELDS = new Set(['mode', 'steps', 'handoff']);
+const MULTILINE_FIELDS = new Set(['thinking', 'evaluation', 'memory', 'reasoning']);
+
+function StepRow({ step, index, maxDuration }: { step: Step; index: number; maxDuration: number }) {
+  const [expanded, setExpanded] = useState(false);
+  const fast = step.type === 'playwright';
+  const barWidth = (step.durationMs != null && maxDuration > 0)
+    ? Math.max(4, (step.durationMs / maxDuration) * 100)
+    : 0;
+
+  const hasDetails = step.details && Object.keys(step.details).some(k => !HIDDEN_FIELDS.has(k));
+
+  return (
+    <div>
+      <div
+        className={`flex items-center gap-2 py-[5px] px-1 text-[13px] leading-tight rounded-lg transition-colors ${
+          hasDetails ? 'cursor-pointer hover:bg-white/[0.02]' : ''
+        } ${fast ? 'anim-step-fast' : 'anim-step-slow'}`}
+        style={fast ? { animationDelay: `${index * 25}ms` } : undefined}
+        onClick={() => hasDetails && setExpanded(!expanded)}
+      >
+        {/* Method badge */}
+        <span className={`flex-shrink-0 text-[9px] font-mono font-bold uppercase tracking-wider px-1.5 py-[1px] rounded ${
+          fast
+            ? 'bg-lime/15 text-lime'
+            : 'bg-amber-400/12 text-amber-400'
+        }`}>
+          {fast ? 'PW' : 'LLM'}
+        </span>
+
+        {/* Description */}
+        <span className={`flex-1 truncate ${fast ? 'text-text' : 'text-text-dim'}`}>
+          {step.description}
+        </span>
+
+        {/* Expand indicator */}
+        {hasDetails && (
+          <span className="text-[10px] text-text-muted/40 shrink-0">
+            {expanded ? '▾' : '▸'}
+          </span>
+        )}
+
+        {/* Timing bar + duration */}
+        {step.durationMs != null && (
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <div className="w-16 h-[4px] rounded-full bg-surface/60 overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-300 ${
+                  fast ? 'bg-lime/60' : 'bg-amber-400/50'
+                }`}
+                style={{ width: `${barWidth}%` }}
+              />
+            </div>
+            <span className={`font-mono text-[11px] tabular-nums w-14 text-right ${
+              fast ? 'text-lime/60' : 'text-amber-400/60'
+            }`}>
+              {formatDuration(step.durationMs)}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Expanded details */}
+      {expanded && step.details && (
+        <div className="ml-10 mr-2 mb-1 px-3 py-2 rounded-lg space-y-1.5"
+             style={{ background: 'rgba(255,255,255,0.02)' }}>
+          {Object.entries(step.details)
+            .filter(([k]) => !HIDDEN_FIELDS.has(k))
+            .map(([k, v]) => {
+              const label = DETAIL_LABELS[k] || k;
+              const isMultiline = MULTILINE_FIELDS.has(k);
+              const value = typeof v === 'object' ? JSON.stringify(v, null, 2) : String(v);
+
+              return isMultiline ? (
+                <div key={k} className="text-[11px]">
+                  <span className="text-text-muted font-medium">{label}</span>
+                  <p className="mt-0.5 text-text-dim/80 leading-relaxed whitespace-pre-wrap">
+                    {value}
+                  </p>
+                </div>
+              ) : (
+                <div key={k} className="flex gap-2 text-[11px]">
+                  <span className="text-text-muted shrink-0 font-medium">{label}</span>
+                  <span className="text-text-dim truncate">{value}</span>
+                </div>
+              );
+            })}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function StepTracker({ steps, phase, currentStep, showSummary = false }: StepTrackerProps) {
@@ -52,56 +170,9 @@ export function StepTracker({ steps, phase, currentStep, showSummary = false }: 
 
   return (
     <div className="flex flex-col gap-0.5">
-      {steps.map((step, i) => {
-        const fast = step.type === 'playwright';
-        // Bar width proportional to duration (relative to max step)
-        const barWidth = (step.durationMs != null && stats.maxDuration > 0)
-          ? Math.max(4, (step.durationMs / stats.maxDuration) * 100)
-          : 0;
-
-        return (
-          <div
-            key={step.id}
-            className={`flex items-center gap-2 py-[5px] px-1 text-[13px] leading-tight rounded-lg transition-colors ${
-              fast ? 'anim-step-fast' : 'anim-step-slow'
-            }`}
-            style={fast ? { animationDelay: `${i * 25}ms` } : undefined}
-          >
-            {/* Method badge */}
-            <span className={`flex-shrink-0 text-[9px] font-mono font-bold uppercase tracking-wider px-1.5 py-[1px] rounded ${
-              fast
-                ? 'bg-lime/15 text-lime'
-                : 'bg-amber-400/12 text-amber-400'
-            }`}>
-              {fast ? 'PW' : 'LLM'}
-            </span>
-
-            {/* Description */}
-            <span className={`flex-1 truncate ${fast ? 'text-text' : 'text-text-dim'}`}>
-              {step.description}
-            </span>
-
-            {/* Timing bar + duration */}
-            {step.durationMs != null && (
-              <div className="flex items-center gap-1.5 flex-shrink-0">
-                <div className="w-16 h-[4px] rounded-full bg-surface/60 overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-300 ${
-                      fast ? 'bg-lime/60' : 'bg-amber-400/50'
-                    }`}
-                    style={{ width: `${barWidth}%` }}
-                  />
-                </div>
-                <span className={`font-mono text-[11px] tabular-nums w-14 text-right ${
-                  fast ? 'text-lime/60' : 'text-amber-400/60'
-                }`}>
-                  {formatDuration(step.durationMs)}
-                </span>
-              </div>
-            )}
-          </div>
-        );
-      })}
+      {steps.map((step, i) => (
+        <StepRow key={step.id} step={step} index={i} maxDuration={stats.maxDuration} />
+      ))}
 
       {showCurrentStep && (
         <div className="flex items-center gap-2 py-[5px] px-1 text-[13px]">

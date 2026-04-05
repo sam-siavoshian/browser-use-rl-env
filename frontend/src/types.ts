@@ -44,10 +44,18 @@ export interface ChatSessionSummary {
 export interface Template {
   id: string;
   domain: string;
+  action_type?: string;
   pattern: string;
   confidence: number;
+  success_count?: number;
+  failure_count?: number;
+  avg_rocket_duration_ms?: number | null;
+  avg_agent_duration_ms?: number | null;
+  avg_total_duration_ms?: number | null;
+  avg_baseline_duration_ms?: number | null;
   steps: TemplateStep[];
   created_at: string;
+  updated_at?: string;
   uses: number;
 }
 

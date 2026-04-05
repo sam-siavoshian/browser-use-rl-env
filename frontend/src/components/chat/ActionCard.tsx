@@ -1,6 +1,25 @@
 import { useState } from 'react';
 import type { Step } from '../../types';
 
+/** Human-readable labels for agent reasoning fields */
+const DETAIL_LABELS: Record<string, string> = {
+  thinking: 'Thinking',
+  evaluation: 'Evaluation',
+  memory: 'Memory',
+  actions: 'Actions',
+  url: 'URL',
+  page_title: 'Page',
+  similarity: 'Similarity',
+  domain: 'Domain',
+  pattern: 'Pattern',
+};
+
+/** Fields that should be hidden from the expanded view (internal plumbing) */
+const HIDDEN_FIELDS = new Set(['mode']);
+
+/** Fields whose values can span multiple lines */
+const MULTILINE_FIELDS = new Set(['thinking', 'evaluation', 'memory']);
+
 interface ActionCardProps {
   step: Step;
   isLast?: boolean;
@@ -48,6 +67,11 @@ export function ActionCard({ step, isLast, isRunning }: ActionCardProps) {
               <span className="text-[13px] text-text/90 leading-snug truncate">
                 {step.description.replace(/^Agent:\s*/, '')}
               </span>
+              {step.details && Object.keys(step.details).some(k => !HIDDEN_FIELDS.has(k)) && (
+                <span className="text-[10px] text-text-muted/50 ml-1.5 shrink-0">
+                  {expanded ? '▾' : '▸'}
+                </span>
+              )}
             </div>
 
             {duration && (
@@ -57,15 +81,30 @@ export function ActionCard({ step, isLast, isRunning }: ActionCardProps) {
             )}
           </div>
 
-          {/* Expanded details */}
+          {/* Expanded details — agent reasoning, actions, page state */}
           {expanded && step.details && (
-            <div className="mt-2.5 ml-[21px] space-y-1.5 pb-1">
-              {Object.entries(step.details).map(([k, v]) => (
-                <div key={k} className="flex gap-2 text-[11px]">
-                  <span className="text-text-muted shrink-0 font-mono">{k}</span>
-                  <span className="text-text-dim truncate">{String(v)}</span>
-                </div>
-              ))}
+            <div className="mt-2.5 space-y-2 pb-1">
+              {Object.entries(step.details)
+                .filter(([k]) => !HIDDEN_FIELDS.has(k))
+                .map(([k, v]) => {
+                  const label = DETAIL_LABELS[k] || k;
+                  const isMultiline = MULTILINE_FIELDS.has(k);
+                  const value = String(v);
+
+                  return isMultiline ? (
+                    <div key={k} className="text-[11px]">
+                      <span className="text-text-muted font-medium">{label}</span>
+                      <p className="mt-0.5 text-text-dim/80 leading-relaxed whitespace-pre-wrap">
+                        {value}
+                      </p>
+                    </div>
+                  ) : (
+                    <div key={k} className="flex gap-2 text-[11px]">
+                      <span className="text-text-muted shrink-0 font-medium">{label}</span>
+                      <span className="text-text-dim truncate">{value}</span>
+                    </div>
+                  );
+                })}
             </div>
           )}
         </div>

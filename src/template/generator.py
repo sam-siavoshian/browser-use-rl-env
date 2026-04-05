@@ -127,21 +127,24 @@ def generate_template(
 
         param_info = step_data.get("parameter")
 
+        # Normalize LLM-hallucinated action names to valid browser-use actions.
+        # The LLM occasionally generates plausible but invalid action names.
+        raw_action = step_data.get("action", "unknown")
+        raw_action = _normalize_action(raw_action)
+
         steps.append(
             InternalTemplateStep(
                 index=len(steps),
-                action=step_data.get("action", "unknown"),
+                action=raw_action,
                 params=step_data.get("params", {}),
                 classification=step_data["classification"],
                 selectors=selectors,
                 parameter_name=param_info["name"] if param_info else None,
-                parameter_field=_infer_parameter_field(
-                    step_data.get("action", ""), param_info
-                ),
+                parameter_field=_infer_parameter_field(raw_action, param_info),
                 reasoning=step_data.get("reasoning"),
                 retry_on_failure=step_data["classification"]
                 in ("FIXED", "PARAMETERIZED"),
-                wait_after_ms=_infer_wait_time(step_data.get("action", "")),
+                wait_after_ms=_infer_wait_time(raw_action),
             )
         )
 
@@ -293,3 +296,59 @@ def _action_timeout_ms(action: str) -> int:
     Selector-based actions need enough time for elements to appear.
     """
     return config.ACTION_TIMEOUT_MS.get(action, config.ACTION_TIMEOUT_DEFAULT)
+
+
+# Map of LLM-hallucinated action names → valid browser-use actions.
+# The analyzer LLM occasionally generates plausible but non-existent
+# action names. Rather than failing validation, normalize them here.
+_ACTION_ALIASES: dict[str, str] = {
+    "find_elements": "find_text",
+    "find_element": "find_text",
+    "type": "input",
+    "type_text": "input",
+    "enter": "send_keys",
+    "press_key": "send_keys",
+    "goto": "navigate",
+    "open": "navigate",
+    "open_url": "navigate",
+    "back": "go_back",
+    "select": "select_dropdown",
+    "choose": "select_dropdown",
+    "submit": "click",
+    "tap": "click",
+    "hover": "click",
+    "read": "extract",
+    "get_text": "extract",
+    "get_content": "extract",
+    "extract_text": "extract",
+    "extract_content": "extract",
+    "scrape": "extract",
+    "capture": "screenshot",
+    "snap": "screenshot",
+    "scroll_down": "scroll",
+    "scroll_up": "scroll",
+    "wait_for": "wait",
+    "sleep": "wait",
+    "fill": "input",
+    "write": "input",
+}
+
+
+def _normalize_action(action: str) -> str:
+    """Normalize an LLM-generated action name to a valid browser-use action.
+
+    Returns the original action if it's already valid or if no alias exists
+    (the validator will catch truly invalid actions downstream).
+    """
+    from src.template.simplifier import VALID_ACTIONS
+
+    if action in VALID_ACTIONS:
+        return action
+    normalized = _ACTION_ALIASES.get(action.lower())
+    if normalized:
+        import logging
+        logging.getLogger("rocket_booster.generator").info(
+            "Normalized LLM action '%s' → '%s'", action, normalized,
+        )
+        return normalized
+    return action

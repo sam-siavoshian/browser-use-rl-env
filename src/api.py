@@ -294,7 +294,30 @@ async def _run_agent(
                     action_names.append(k)
         goal = model_output.next_goal if model_output else None
         desc = goal or ", ".join(action_names) or f"Step {n_steps}"
-        _step(session_id, f"Agent: {desc}", "agent", elapsed_ms)
+
+        # Surface agent reasoning as expandable details on each step.
+        # browser-use AgentOutput carries thinking, evaluation, memory
+        # fields that show the agent's internal reasoning process.
+        details: dict[str, Any] = {}
+        if model_output:
+            if model_output.thinking:
+                details["thinking"] = model_output.thinking
+            if model_output.evaluation_previous_goal:
+                details["evaluation"] = model_output.evaluation_previous_goal
+            if model_output.memory:
+                details["memory"] = model_output.memory
+            if action_names:
+                details["actions"] = ", ".join(action_names)
+        if browser_state:
+            url = getattr(browser_state, "url", None)
+            if url:
+                details["url"] = url
+            title = getattr(browser_state, "title", None)
+            if title:
+                details["page_title"] = title
+
+        _step(session_id, f"Agent: {desc}", "agent", elapsed_ms,
+              details=details if details else None)
 
     _step(session_id, "Agent starting...", "agent")
     agent = Agent(
@@ -423,19 +446,73 @@ async def _run_learn(session_id: str, task: str) -> None:
 
         template = await extract_template_from_trace(history, task)
 
-        fixed_count = len([s for s in template.steps if s.classification != "DYNAMIC"])
+        fixed_count = len([s for s in template.steps if s.classification == "FIXED"])
+        param_count = len([s for s in template.steps if s.classification == "PARAMETERIZED"])
+        dynamic_count = len([s for s in template.steps if s.classification == "DYNAMIC"])
         total_count = len(template.steps)
+        pw_count = fixed_count + param_count
+
+        # Emit rich learning details so the UI can show what was learned
+        step_breakdown = []
+        for i, s in enumerate(template.steps):
+            entry = {
+                "index": i,
+                "action": s.action,
+                "classification": s.classification,
+            }
+            if s.selectors and s.selectors.primary:
+                entry["selector"] = s.selectors.primary
+            if s.parameter_name:
+                entry["parameter"] = s.parameter_name
+            if s.reasoning:
+                entry["reasoning"] = s.reasoning
+            step_breakdown.append(entry)
+
         _step(
             session_id,
-            f"Learned {total_count} steps: {fixed_count} replayable by Playwright, "
-            f"handoff at step {template.handoff_index}",
+            f"Analyzed {total_count} steps: {pw_count} Playwright-replayable, "
+            f"{dynamic_count} dynamic (agent needed)",
             "agent",
+            details={
+                "domain": template.domain,
+                "action_type": template.action_type,
+                "pattern": template.task_pattern,
+                "total_steps": total_count,
+                "fixed_steps": fixed_count,
+                "parameterized_steps": param_count,
+                "dynamic_steps": dynamic_count,
+                "handoff_index": template.handoff_index,
+                "steps": step_breakdown,
+            },
         )
+
+        # Emit each learned step individually for the activity feed
+        for i, s in enumerate(template.steps):
+            classification = s.classification
+            action = s.action
+            desc = f"Step {i}: {action}"
+            if s.parameter_name:
+                desc += f" ({{{s.parameter_name}}})"
+            if s.reasoning:
+                desc += f" — {s.reasoning}"
+            step_type = "playwright" if classification != "DYNAMIC" else "agent"
+            _step(session_id, desc, step_type, details={
+                "classification": classification,
+                "action": action,
+                "handoff": i == template.handoff_index,
+            })
 
         _step(session_id, "Storing template in Supabase...", "agent")
         db_dict = template_to_db_format(template)
         template_id = await create_template(**db_dict)
-        _step(session_id, f"Template saved! ID: {template_id[:8]}...", "agent")
+        _step(session_id, f"Template saved! ID: {template_id[:8]}...", "agent",
+              details={
+                  "template_id": template_id,
+                  "domain": template.domain,
+                  "pattern": template.task_pattern,
+                  "playwright_steps": pw_count,
+                  "agent_steps": dynamic_count,
+              })
 
         elapsed = time.monotonic() * 1000 - start_ms
         _update(session_id, status="complete", phase="complete", duration_ms=elapsed, current_step="Done! Template ready for racing.")
@@ -1062,15 +1139,25 @@ async def list_templates() -> list[dict]:
             os.environ.get("SUPABASE_SERVICE_ROLE_KEY", ""),
         )
         result = client.table("task_templates").select(
-            "id, domain, task_pattern, confidence, handoff_index, steps, parameters, success_count, created_at"
+            "id, domain, action_type, task_pattern, confidence, handoff_index, "
+            "steps, parameters, success_count, failure_count, "
+            "avg_rocket_duration_ms, avg_agent_duration_ms, avg_total_duration_ms, "
+            "avg_baseline_duration_ms, created_at, updated_at"
         ).order("created_at", desc=True).limit(20).execute()
 
         return [
             {
                 "id": t["id"],
                 "domain": t["domain"],
+                "action_type": t.get("action_type", "unknown"),
                 "pattern": t["task_pattern"],
                 "confidence": t["confidence"],
+                "success_count": t.get("success_count", 0),
+                "failure_count": t.get("failure_count", 0),
+                "avg_rocket_duration_ms": t.get("avg_rocket_duration_ms"),
+                "avg_agent_duration_ms": t.get("avg_agent_duration_ms"),
+                "avg_total_duration_ms": t.get("avg_total_duration_ms"),
+                "avg_baseline_duration_ms": t.get("avg_baseline_duration_ms"),
                 "steps": [
                     {
                         "id": f"s{i}",
@@ -1081,6 +1168,7 @@ async def list_templates() -> list[dict]:
                     for i, s in enumerate(t.get("steps", []))
                 ],
                 "created_at": t.get("created_at", ""),
+                "updated_at": t.get("updated_at", ""),
                 "uses": t.get("success_count", 0),
             }
             for t in result.data
