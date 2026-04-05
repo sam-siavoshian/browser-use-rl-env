@@ -24,7 +24,7 @@ export function DocsTopNav({ onOpenSearch, onOpenMenu }: DocsTopNavProps) {
         <button
           type="button"
           onClick={onOpenSearch}
-          className="group w-full max-w-md flex items-center gap-2.5 h-9 px-3 rounded-md border border-border/90 bg-elevated hover:bg-white/[0.03] hover:border-border transition-colors duration-100 text-left"
+          className="group w-full max-w-md flex items-center gap-2.5 h-9 min-h-9 px-3 rounded-md border border-border/90 bg-elevated hover:bg-white/[0.03] hover:border-border transition-colors duration-100 text-left"
           aria-label="Search documentation"
         >
           <SearchIcon size={15} className="text-text-muted shrink-0 opacity-80" />

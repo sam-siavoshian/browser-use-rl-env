@@ -1,4 +1,5 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useLayoutEffect } from 'react';
+import { CHAT_INPUT_MAX_HEIGHT_PX, PRIMARY_INPUT_MIN_HEIGHT_PX } from '../../ui/inputSizing';
 
 interface ChatInputProps {
   onSubmit: (task: string) => void;
@@ -11,14 +12,26 @@ export function ChatInput({ onSubmit, disabled, placeholder }: ChatInputProps) {
   const [focused, setFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  const syncHeight = useCallback(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    const next = Math.min(
+      Math.max(el.scrollHeight, PRIMARY_INPUT_MIN_HEIGHT_PX),
+      CHAT_INPUT_MAX_HEIGHT_PX,
+    );
+    el.style.height = `${next}px`;
+  }, []);
+
+  useLayoutEffect(() => {
+    syncHeight();
+  }, [value, syncHeight]);
+
   const handleSubmit = useCallback(() => {
     const trimmed = value.trim();
     if (!trimmed || disabled) return;
     onSubmit(trimmed);
     setValue('');
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-    }
   }, [value, disabled, onSubmit]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -27,13 +40,6 @@ export function ChatInput({ onSubmit, disabled, placeholder }: ChatInputProps) {
       handleSubmit();
     }
   }, [handleSubmit]);
-
-  const handleInput = useCallback(() => {
-    const el = textareaRef.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = Math.min(el.scrollHeight, 120) + 'px';
-  }, []);
 
   const canSubmit = value.trim().length > 0 && !disabled;
 
@@ -52,7 +58,7 @@ export function ChatInput({ onSubmit, disabled, placeholder }: ChatInputProps) {
         }}
       >
         <div
-          className="relative flex items-end gap-3 rounded-[19px] px-5 py-4"
+          className="relative flex items-end gap-3 rounded-[19px] px-5 py-3"
           style={{
             background: 'rgba(0,0,0,0.4)',
             boxShadow: `
@@ -66,7 +72,7 @@ export function ChatInput({ onSubmit, disabled, placeholder }: ChatInputProps) {
           <textarea
             ref={textareaRef}
             value={value}
-            onChange={(e) => { setValue(e.target.value); handleInput(); }}
+            onChange={(e) => setValue(e.target.value)}
             onKeyDown={handleKeyDown}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
@@ -75,10 +81,14 @@ export function ChatInput({ onSubmit, disabled, placeholder }: ChatInputProps) {
             rows={1}
             className="flex-1 resize-none bg-transparent text-[15px] text-text placeholder-text-muted/60
                        focus:outline-none disabled:opacity-30 leading-[1.6] py-0.5 px-0
-                       min-h-[28px] max-h-[120px]"
-            style={{ fontFamily: 'var(--font-body)' }}
+                       min-h-[36px] overflow-y-auto"
+            style={{
+              fontFamily: 'var(--font-body)',
+              maxHeight: CHAT_INPUT_MAX_HEIGHT_PX,
+            }}
           />
           <button
+            type="button"
             onClick={handleSubmit}
             disabled={!canSubmit}
             className="shrink-0 flex items-center justify-center w-9 h-9 rounded-xl

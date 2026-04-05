@@ -90,7 +90,8 @@ async def _execute_step(page: Page, step: TemplateStep, step_index: int) -> None
             selector = await _try_selector(page, step, step_index)
             await page.click(selector)
 
-        elif step.action == "fill":
+        elif step.action in ("fill", "input"):
+            # "input" is browser-use / template vocabulary; Playwright uses fill().
             selector = await _try_selector(page, step, step_index)
             if step.clear_first:
                 await page.fill(selector, "")

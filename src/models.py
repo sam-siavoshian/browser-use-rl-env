@@ -15,7 +15,7 @@ class TemplateStep:
 
     index: int
     type: str  # "fixed", "parameterized", "dynamic"
-    action: str | None = None  # e.g., "navigate", "click", "fill"
+    action: str | None = None  # e.g., "navigate", "click", "fill", "input"
     url: str | None = None
     selector: str | None = None
     fallback_selectors: list[str] = field(default_factory=list)

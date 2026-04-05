@@ -52,9 +52,23 @@ const PixelTrail: React.FC<PixelTrailProps> = ({
         }
       }
 
-      const rect = containerRef.current.getBoundingClientRect();
-      const x = Math.floor((clientX - rect.left) / pixelSize);
-      const y = Math.floor((clientY - rect.top) / pixelSize);
+      const el = containerRef.current;
+      const rect = el.getBoundingClientRect();
+      const ow = el.offsetWidth;
+      const oh = el.offsetHeight;
+      // Map viewport coords to layout CSS px (fixes offset when #root or ancestor uses `zoom`).
+      let scaleX = ow > 0 ? rect.width / ow : 1;
+      let scaleY = oh > 0 ? rect.height / oh : 1;
+      const root = document.getElementById('root');
+      const rootZoom = root ? parseFloat(getComputedStyle(root).zoom || '1') || 1 : 1;
+      if (rootZoom !== 1 && Math.abs(scaleX - 1) < 0.02 && Math.abs(scaleY - 1) < 0.02) {
+        scaleX = rootZoom;
+        scaleY = rootZoom;
+      }
+      const localX = (clientX - rect.left) / scaleX;
+      const localY = (clientY - rect.top) / scaleY;
+      const x = Math.floor(localX / pixelSize);
+      const y = Math.floor(localY / pixelSize);
 
       const pixelElement = document.getElementById(
         `${trailId.current}-pixel-${x}-${y}`

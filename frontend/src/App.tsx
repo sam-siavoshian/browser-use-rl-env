@@ -10,25 +10,27 @@ import { PhaseIndicator } from './components/PhaseIndicator';
 import { ComparisonCard } from './components/ComparisonCard';
 import { TemplateSearchCard } from './components/TemplateSearchCard';
 import { ChatPage } from './pages/ChatPage';
+import { HomePage } from './pages/HomePage';
 import { DocsLayout } from './pages/docs/DocsLayout';
 import { usePoller } from './hooks/usePoller';
 import { useTimer } from './hooks/useTimer';
 import { startCompare, startLearn, getTemplates } from './api';
 import type { Template, Phase } from './types';
 
-type View = 'chat' | 'chat_session' | 'learning' | 'racing' | 'results';
+type View = 'home' | 'chat' | 'chat_session' | 'learning' | 'racing' | 'results';
 
 function pathToView(pathname: string): View {
   const p = pathname.replace(/\/+$/, '') || '/';
+  if (p.startsWith('/learn/')) return 'chat_session';
+  if (p === '/learn') return 'chat';
   if (p.startsWith('/chat/')) return 'chat_session';
   if (p === '/rl/learn') return 'learning';
   if (p === '/rl/race') return 'racing';
   if (p === '/rl/results') return 'results';
-  // Legacy routes
-  if (p === '/learn') return 'learning';
   if (p === '/race') return 'racing';
   if (p === '/results') return 'results';
-  return 'chat';
+  if (p === '/') return 'home';
+  return 'home';
 }
 
 function App() {
@@ -71,8 +73,20 @@ function App() {
 
   useEffect(() => {
     const p = location.pathname.replace(/\/+$/, '') || '/';
+    const chatLegacy = p.match(/^\/chat\/(.+)$/);
+    if (chatLegacy) {
+      navigate(`/learn/${chatLegacy[1]}`, { replace: true });
+      return;
+    }
+    if (p === '/chat') {
+      navigate('/learn', { replace: true });
+    }
+  }, [location.pathname, navigate]);
+
+  useEffect(() => {
+    const p = location.pathname.replace(/\/+$/, '') || '/';
     const allowed = ['/', '/learn', '/race', '/results', '/rl/learn', '/rl/race', '/rl/results'];
-    if (!allowed.includes(p) && !p.startsWith('/chat/') && !p.startsWith('/docs')) {
+    if (!allowed.includes(p) && !p.startsWith('/chat/') && !p.startsWith('/learn/') && !p.startsWith('/docs')) {
       navigate('/', { replace: true });
     }
   }, [location.pathname, navigate]);
@@ -112,7 +126,7 @@ function App() {
     setLearnId(null);
     learnTimer.reset();
     setLearnStarting(true);
-    navigate('/learn');
+    navigate('/rl/learn');
     try {
       const sessionId = await startLearn(task);
       setLearnId(sessionId);
@@ -182,7 +196,14 @@ function App() {
             style={{ background: 'radial-gradient(circle, rgba(200,255,0,0.02) 0%, transparent 65%)' }} />
         </div>
 
-        {/* ═══ CHAT VIEW (main product) ═══ */}
+        {/* ═══ HOME (choose what to do) ═══ */}
+        {view === 'home' && (
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative z-10">
+            <HomePage />
+          </div>
+        )}
+
+        {/* ═══ CHAT (browser agent — idle + session at /learn) ═══ */}
         {isChatView && (
           <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative z-10">
             <ChatPage />

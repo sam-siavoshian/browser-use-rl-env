@@ -13,8 +13,14 @@ export function useDimensions(ref: RefObject<HTMLElement | SVGElement | null>): 
 
     const updateDimensions = () => {
       if (ref.current) {
-        const { width, height } = ref.current.getBoundingClientRect();
-        setDimensions({ width, height });
+        const el = ref.current;
+        // Use layout box (offset*) for HTML; SVG uses bounding rect (offset* not on SVGElement in TS DOM).
+        if (el instanceof HTMLElement) {
+          setDimensions({ width: el.offsetWidth, height: el.offsetHeight });
+        } else {
+          const r = el.getBoundingClientRect();
+          setDimensions({ width: r.width, height: r.height });
+        }
       }
     };
 

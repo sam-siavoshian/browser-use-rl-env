@@ -184,7 +184,7 @@ async def find_matching_template(
 
     # Try pgvector first, fall back to REST
     rows = await _search_via_pgvector(embedding, domain, action_type)
-    if rows is None:
+    if not rows:
         rows = await _search_via_rest(embedding, domain, action_type)
 
     if not rows:

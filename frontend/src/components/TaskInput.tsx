@@ -3,11 +3,9 @@ import { motion } from 'motion/react';
 import { BrainIcon, RocketIcon } from 'lucide-animated';
 import { useRotatingTypewriter } from '../hooks/useRotatingTypewriter';
 import { ExamplePillGrid } from './ExamplePillGrid';
+import { PRIMARY_INPUT_MIN_HEIGHT_PX, TASK_FIELD_ABS_MAX_PX } from '../ui/inputSizing';
 
-/** Single-line empty state — tight row; grows when content needs it. */
-const TASK_FIELD_MIN = 36;
-/** Only extreme pastes hit this; example pills fit below ~95vh without inner scrollbar. */
-const TASK_FIELD_ABS_MAX = 12000;
+const TASK_FIELD_MIN = PRIMARY_INPUT_MIN_HEIGHT_PX;
 
 /** Short rotating prompts — keeps the field one line without resize. */
 const PLACEHOLDER_PHRASES = [
@@ -62,7 +60,7 @@ export function TaskInput({ onRun, onLearn, isRunning, onStop, compact }: TaskIn
       const natural = el.scrollHeight;
       el.style.removeProperty('height');
       const cap = Math.min(
-        TASK_FIELD_ABS_MAX,
+        TASK_FIELD_ABS_MAX_PX,
         Math.round(window.innerHeight * 0.95),
       );
       const next = Math.min(Math.max(natural, TASK_FIELD_MIN), cap);

@@ -8,23 +8,26 @@ interface ActionFeedProps {
   steps: Step[];
   isRunning: boolean;
   agentResult?: string | null;
-  isComplete?: boolean;
+  /** True once the agent's final text is available (learn flow may still save the template) */
+  showAgentAnswer?: boolean;
 }
 
-export function ActionFeed({ steps, isRunning, agentResult, isComplete }: ActionFeedProps) {
+export function ActionFeed({ steps, isRunning, agentResult, showAgentAnswer }: ActionFeedProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [steps.length, agentResult]);
+  }, [steps.length, agentResult, showAgentAnswer]);
 
   return (
     <div className="flex flex-col h-full min-h-0">
       <div className="flex-1 min-h-0 overflow-y-auto py-3 overscroll-contain">
         {steps.length === 0 && isRunning && (
-          <div className="flex items-center gap-3 px-6 py-4"
-               style={{ animation: 'fade-in 0.3s ease both' }}>
-            <div className="w-2 h-2 rounded-full bg-sky dot-pulse" />
+          <div
+            className="flex items-center gap-3.5 px-6 py-4"
+            style={{ animation: 'fade-in 0.3s ease both' }}
+          >
+            <div className="w-[7px] h-[7px] rounded-full bg-sky dot-pulse shrink-0" />
             <ShiningText text="Starting agent..." className="text-[12px]" />
           </div>
         )}
@@ -49,16 +52,16 @@ export function ActionFeed({ steps, isRunning, agentResult, isComplete }: Action
           ))}
         </div>
 
-        {/* Thinking indicator */}
-        {isRunning && steps.length > 0 && (
-          <div className="flex items-center gap-3 px-6 py-3 ml-[6px]">
+        {/* Thinking indicator — hide once the agent answer is visible */}
+        {isRunning && steps.length > 0 && !showAgentAnswer && (
+          <div className="flex items-center gap-3.5 px-6 py-3">
             <div className="w-[7px] h-[7px] rounded-full bg-sky dot-pulse shrink-0" />
             <ShiningText text="Thinking..." className="text-[12px]" />
           </div>
         )}
 
-        {/* Agent result card */}
-        {agentResult && isComplete && (
+        {/* Agent result card — as soon as the backend sends result + agent_complete */}
+        {agentResult && showAgentAnswer && (
           <div className="mx-4 mt-3 mb-2" style={{ animation: 'fade-up 0.4s cubic-bezier(0.16,1,0.3,1) both' }}>
             <div
               className="rounded-2xl px-5 py-4"
@@ -87,6 +90,14 @@ export function ActionFeed({ steps, isRunning, agentResult, isComplete }: Action
               {/* Content — markdown: **bold**, *italic*, lists, blockquotes, code, tables, links */}
               <AgentResultMarkdown content={agentResult} />
             </div>
+          </div>
+        )}
+
+        {/* Template extraction still running after the answer is shown */}
+        {isRunning && showAgentAnswer && (
+          <div className="flex items-center gap-3.5 px-6 py-2">
+            <div className="w-[7px] h-[7px] rounded-full bg-lime/80 dot-pulse shrink-0" />
+            <span className="text-[12px] text-text-muted">Saving template…</span>
           </div>
         )}
 

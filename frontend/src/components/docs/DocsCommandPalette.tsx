@@ -63,12 +63,12 @@ export function DocsCommandPalette({
         className="relative z-10 flex w-full max-w-[500px] flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-[0_0_0_1px_rgba(255,255,255,0.03),0_16px_48px_-8px_rgba(0,0,0,0.65)] animate-[scale-up_0.14s_cubic-bezier(0.16,1,0.3,1)] max-h-[min(480px,70vh)] [&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.08em] [&_[cmdk-group-heading]]:text-text-muted"
       >
         {/* Search field — compact strip */}
-        <div className="flex items-center gap-2 border-b border-border px-3 py-2 shrink-0">
+        <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border px-3">
           <SearchIcon size={16} className="shrink-0 text-text-muted" aria-hidden />
           <Command.Input
             placeholder="Search documentation…"
             autoFocus
-            className="flex-1 min-w-0 bg-transparent text-[13px] leading-snug text-text placeholder:text-text-muted outline-none py-0.5"
+            className="flex-1 min-w-0 h-9 min-h-9 bg-transparent text-[13px] leading-normal text-text placeholder:text-text-muted outline-none py-0"
           />
           <kbd className="hidden sm:inline-flex shrink-0 items-center rounded-md border border-border/80 bg-black/35 px-1.5 py-0.5 font-mono text-[10px] text-text-muted">
             ESC

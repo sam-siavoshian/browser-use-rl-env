@@ -10,16 +10,16 @@ type ExamplePillGridProps = {
 };
 
 /**
- * 3 pills, then 2 centered — soft capsules with full “Learn how to…” copy.
+ * 3 pills, then 2 centered — soft capsules with action-oriented copy.
  */
 export function ExamplePillGrid({ onPick, disabled, className = '', animBaseMs = 160 }: ExamplePillGridProps) {
   const rowA = EXAMPLE_TASKS.slice(0, 3);
   const rowB = EXAMPLE_TASKS.slice(3, 5);
 
   return (
-    <div className={`flex flex-col items-center gap-3 ${className}`} aria-label="Example learning goals">
+    <div className={`flex flex-col items-center gap-3 ${className}`} aria-label="Example tasks">
       <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-text-muted text-center">
-        Learn how to…
+        Try something like…
       </p>
 
       <div className="flex flex-col items-center gap-2 w-full max-w-[640px]">

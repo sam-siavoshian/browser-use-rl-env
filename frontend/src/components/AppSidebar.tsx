@@ -3,13 +3,13 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import {
   RocketIcon,
   HomeIcon,
+  MessageCircleIcon,
   BrainIcon,
   ZapIcon,
   LayersIcon,
   MenuIcon,
   XIcon,
   ChevronLeftIcon,
-  ChevronRightIcon,
   FileTextIcon,
   type HomeIconHandle,
   type BrainIconHandle,
@@ -65,19 +65,19 @@ export function AppSidebar({ templates, sidebarOpen, onToggle, collapsed, onColl
       >
         {/* Header */}
         <div className={`flex items-center h-14 px-3 border-b border-sidebar-border ${collapsed ? 'justify-center' : 'justify-between'}`}>
-          {!collapsed && (
-            <div className="flex items-center gap-2.5 pl-1">
-              <div className="w-7 h-7 rounded-lg bg-lime/10 flex items-center justify-center">
-                <RocketIcon size={14} className="text-lime" />
-              </div>
-              <span className="text-[14px] font-semibold text-text tracking-tight">Rocket</span>
-            </div>
-          )}
-          {collapsed && (
-            <div className="w-7 h-7 rounded-lg bg-lime/10 flex items-center justify-center">
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            className={`flex items-center gap-2.5 pl-1 rounded-lg hover:bg-white/[0.04] transition-colors cursor-pointer ${collapsed ? 'justify-center p-0' : ''}`}
+            title="Home"
+          >
+            <div className="w-7 h-7 rounded-lg bg-lime/10 flex items-center justify-center shrink-0">
               <RocketIcon size={14} className="text-lime" />
             </div>
-          )}
+            {!collapsed && (
+              <span className="text-[14px] font-semibold text-text tracking-tight">Rocket</span>
+            )}
+          </button>
           <button
             type="button"
             onClick={() => onCollapse(!collapsed)}
@@ -96,7 +96,7 @@ export function AppSidebar({ templates, sidebarOpen, onToggle, collapsed, onColl
 
         {/* Navigation */}
         <nav className={`flex-1 flex flex-col gap-1 py-3 ${collapsed ? 'px-2' : 'px-3'}`}>
-          {/* New Chat button */}
+          {/* Home — root hub (not /learn) */}
           <button
             type="button"
             onClick={() => { navigate('/'); if (sidebarOpen) onToggle(); }}
@@ -105,10 +105,36 @@ export function AppSidebar({ templates, sidebarOpen, onToggle, collapsed, onColl
             className={`sidebar-nav-item ${collapsed ? 'justify-center px-0' : ''} ${
               currentPath === '/' ? 'active' : ''
             }`}
-            title={collapsed ? 'New Chat' : undefined}
+            title={collapsed ? 'Home' : undefined}
           >
             <HomeIcon ref={homeIconRef} size={16} className={currentPath === '/' ? 'text-lime' : ''} />
-            {!collapsed && <span>New Chat</span>}
+            {!collapsed && <span>Home</span>}
+          </button>
+
+          {/* Browser chat — /learn */}
+          <button
+            type="button"
+            onClick={() => { navigate('/learn'); if (sidebarOpen) onToggle(); }}
+            className={`sidebar-nav-item ${collapsed ? 'justify-center px-0' : ''} ${
+              currentPath === '/learn' ||
+              currentPath.startsWith('/learn/') ||
+              currentPath.startsWith('/chat/')
+                ? 'active'
+                : ''
+            }`}
+            title={collapsed ? 'Chat' : undefined}
+          >
+            <MessageCircleIcon
+              size={16}
+              className={
+                currentPath === '/learn' ||
+                currentPath.startsWith('/learn/') ||
+                currentPath.startsWith('/chat/')
+                  ? 'text-lime'
+                  : ''
+              }
+            />
+            {!collapsed && <span>Chat</span>}
           </button>
 
           {/* Divider */}
@@ -122,11 +148,10 @@ export function AppSidebar({ templates, sidebarOpen, onToggle, collapsed, onColl
           )}
           {(() => {
             const learnPath = '/rl/learn';
-            const learnActive =
-              currentPath === learnPath || currentPath === learnPath.replace('/rl', '');
+            // Only /rl/learn — do not use "/learn" here (that is the browser chat route).
+            const learnActive = currentPath === learnPath;
             const racePath = '/rl/race';
-            const raceActive =
-              currentPath === racePath || currentPath === racePath.replace('/rl', '');
+            const raceActive = currentPath === racePath || currentPath === '/race';
             return (
               <>
                 <button
@@ -199,9 +224,9 @@ export function AppSidebar({ templates, sidebarOpen, onToggle, collapsed, onColl
                         >
                           <DomainFavicon domain={t.domain} />
                           <span className="truncate flex-1">{t.domain}</span>
-                          <ChevronRightIcon
+                          <ChevronLeftIcon
                             size={12}
-                            className={`shrink-0 text-text-muted/50 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}
+                            className={`shrink-0 text-text-muted/50 transition-transform duration-200 ${isExpanded ? 'rotate-90' : 'rotate-180'}`}
                           />
                         </button>
 

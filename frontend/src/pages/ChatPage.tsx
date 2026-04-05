@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { ChatInput } from '../components/chat/ChatInput';
 import { ActionFeed } from '../components/chat/ActionFeed';
 import { SessionStats } from '../components/chat/SessionStats';
@@ -10,28 +10,34 @@ import { usePoller } from '../hooks/usePoller';
 import { useTimer } from '../hooks/useTimer';
 import { ExamplePillGrid } from '../components/ExamplePillGrid';
 import { startChat } from '../api';
-import type { Phase } from '../types';
+import type { Phase, RunStatus } from '../types';
 
 export function ChatPage() {
-  const { sessionId: urlSessionId } = useParams<{ sessionId: string }>();
+  const location = useLocation();
   const navigate = useNavigate();
-  const [sessionId, setSessionId] = useState<string | null>(urlSessionId || null);
+  const urlSessionId = useMemo(
+    () => location.pathname.match(/^\/(?:chat|learn)\/([^/]+)/)?.[1] ?? null,
+    [location.pathname],
+  );
+  const [sessionId, setSessionId] = useState<string | null>(urlSessionId);
   const { status } = usePoller(sessionId);
   const timer = useTimer();
   const idleHomeRef = useRef<HTMLDivElement>(null);
   const idleContentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (urlSessionId && urlSessionId !== sessionId) {
-      setSessionId(urlSessionId);
-    }
+    setSessionId(urlSessionId);
   }, [urlSessionId]);
 
   useEffect(() => {
-    if (status?.status === 'complete' || status?.status === 'error') {
+    if (
+      status?.status === 'complete' ||
+      status?.status === 'error' ||
+      status?.agent_complete
+    ) {
       timer.stop();
     }
-  }, [status?.status]);
+  }, [status?.status, status?.agent_complete]);
 
   const handleSubmit = useCallback(async (task: string) => {
     try {
@@ -39,19 +45,22 @@ export function ChatPage() {
       setSessionId(sid);
       timer.reset();
       timer.start();
-      navigate(`/chat/${sid}`, { replace: false });
+      navigate(`/learn/${sid}`, { replace: false });
     } catch (err) {
       console.error('Failed to start chat:', err);
     }
   }, [navigate, timer]);
 
   const isRunning = status?.status === 'running' || status?.status === 'pending';
-  const isComplete = status?.status === 'complete';
   const phase = (status?.phase || 'idle') as Phase;
   const steps = status?.steps || [];
   const liveUrl = status?.live_url || null;
-  const modeUsed = (status as any)?.mode_used || null;
-  const agentResult = (status as any)?.result || null;
+  const s = status as RunStatus | null;
+  const agentResult = s?.result ?? null;
+  /** Agent finished (show answer) while learn flow may still be extracting the template */
+  const showAgentAnswer = Boolean(
+    agentResult && (s?.agent_complete === true || s?.status === 'complete'),
+  );
 
   // ═══ IDLE STATE ═══
   if (!sessionId) {
@@ -84,10 +93,10 @@ export function ChatPage() {
               className="text-[48px] sm:text-[56px] leading-[1.05] tracking-[-0.03em] text-text"
               style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic' }}
             >
-              What do you want to learn?
+              What do you want to do!
             </h1>
             <p className="text-[14px] text-text-dim mt-4 max-w-[440px] mx-auto leading-[1.7]">
-              Describe a flow or site to explore in the browser. If I&apos;ve learned it before, I&apos;ll be fast.
+              Describe a flow, site, or task in the browser. If I&apos;ve learned it before, I&apos;ll be fast.
             </p>
           </div>
 
@@ -128,7 +137,9 @@ export function ChatPage() {
           {/* Task header */}
           <div className="px-5 py-3.5 border-b border-border-subtle flex items-center gap-3">
             {isRunning && (
-              <div className="w-2 h-2 rounded-full bg-lime dot-pulse shrink-0" />
+              <div
+                className={`w-2 h-2 rounded-full bg-lime shrink-0 ${status?.agent_complete ? '' : 'dot-pulse'}`}
+              />
             )}
             {!isRunning && status?.status === 'complete' && (
               <div className="w-2 h-2 rounded-full bg-lime shrink-0" />
@@ -142,18 +153,16 @@ export function ChatPage() {
                 : <ShiningText text="Running task..." className="text-[13px]" />
               }
             </div>
-            {modeUsed && (
-              <span className={`text-[10px] font-mono px-2 py-0.5 rounded-md shrink-0 ${
-                modeUsed === 'rocket' ? 'bg-lime/10 text-lime' : 'bg-amber/10 text-amber'
-              }`}>
-                {modeUsed === 'rocket' ? 'ROCKET' : 'LEARNING'}
-              </span>
-            )}
           </div>
 
           {/* Feed */}
           <div className="flex-1 min-h-0 overflow-hidden">
-            <ActionFeed steps={steps} isRunning={isRunning} agentResult={agentResult} isComplete={isComplete} />
+            <ActionFeed
+              steps={steps}
+              isRunning={isRunning}
+              agentResult={agentResult}
+              showAgentAnswer={showAgentAnswer}
+            />
           </div>
         </div>
 
@@ -166,12 +175,7 @@ export function ChatPage() {
       </div>
 
       {/* Bottom: Session stats */}
-      <SessionStats
-        elapsedMs={timer.elapsedMs}
-        stepCount={steps.length}
-        modeUsed={modeUsed}
-        isComplete={status?.status === 'complete'}
-      />
+      <SessionStats elapsedMs={timer.elapsedMs} stepCount={steps.length} />
     </div>
   );
 }

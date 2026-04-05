@@ -85,6 +85,17 @@ async def test_execute_step_fill_no_clear():
 
 
 @pytest.mark.asyncio
+async def test_execute_step_input_alias_for_fill():
+    """Template analyzer emits 'input' (browser-use); rocket maps it to fill."""
+    page = AsyncMock()
+    step = _step("input", selector="#twotabsearchtextbox", value="query")
+    await _execute_step(page, step, 0)
+    assert page.fill.call_count == 2
+    page.fill.assert_any_call("#twotabsearchtextbox", "")
+    page.fill.assert_any_call("#twotabsearchtextbox", "query")
+
+
+@pytest.mark.asyncio
 async def test_execute_step_press_with_selector():
     page = AsyncMock()
     step = _step("press", selector="#input", key="Enter")

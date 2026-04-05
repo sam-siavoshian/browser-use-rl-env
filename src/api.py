@@ -492,7 +492,9 @@ async def _run_chat(session_id: str, task: str) -> None:
         from src.matching.matcher import find_matching_template
         match = await find_matching_template(task)
 
-        if match and match.confidence_band in ("high", "very_high"):
+        # Any TemplateMatch from find_matching_template is usable: medium band
+        # already passed LLM verification in the matcher.
+        if match:
             # --- ROCKET PATH ---
             _update(session_id, mode_used="rocket", template_match={
                 "similarity": round(match.similarity, 3),
@@ -541,13 +543,8 @@ async def _run_chat(session_id: str, task: str) -> None:
         else:
             # --- BASELINE + LEARN PATH ---
             _update(session_id, mode_used="baseline_learn", phase="agent")
-            if match:
-                _step(session_id, f"Low confidence match ({match.similarity:.0%}). Running full agent...",
-                      "agent", action_type="template_match",
-                      details={"similarity": round(match.similarity, 3), "mode": "baseline_learn"})
-            else:
-                _step(session_id, "No template found. Running full agent and learning...",
-                      "agent", action_type="template_match", details={"mode": "baseline_learn"})
+            _step(session_id, "No template found. Running full agent and learning...",
+                  "agent", action_type="template_match", details={"mode": "baseline_learn"})
 
             mgr, browser, cdp_url = await _create_browser(session_id)
             history, bu_session = await _run_agent(session_id, task, cdp_url)
