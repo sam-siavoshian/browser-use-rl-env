@@ -92,7 +92,7 @@ class RocketOrchestrator:
     and provides session state for real-time frontend updates.
     """
 
-    SIMILARITY_THRESHOLD = 0.78
+    SIMILARITY_THRESHOLD = 0.50
     MAX_AGENT_STEPS = 25
     STEP_TIMEOUT_S = 30
 

@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS task_templates (
     parameters JSONB NOT NULL DEFAULT '[]',
     steps JSONB NOT NULL,
     handoff_index INTEGER NOT NULL,
-    embedding vector(1536) NOT NULL,
+    embedding vector(3072) NOT NULL,
     confidence FLOAT NOT NULL DEFAULT 0.5
         CHECK (confidence >= 0.0 AND confidence <= 1.0),
     success_count INTEGER NOT NULL DEFAULT 0

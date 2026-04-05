@@ -1,51 +1,82 @@
 """Domain extraction from task descriptions.
 
 Three strategies in priority order:
-1. Parse explicit URLs
-2. Keyword-to-domain map
-3. Domain-like pattern matching (e.g., "example.com")
+1. Parse explicit URLs (fast, regex)
+2. Domain-like pattern matching (fast, regex)
+3. LLM extraction via Claude Haiku (generalized, no hardcoded maps)
 """
 
+import logging
 import re
-from urllib.parse import urlparse
+from functools import lru_cache
 
-# Fast lookup for common domains (extend as needed)
-KEYWORD_DOMAIN_MAP: dict[str, str] = {
-    "amazon": "amazon.com",
-    "google": "google.com",
-    "youtube": "youtube.com",
-    "github": "github.com",
-    "reddit": "reddit.com",
-    "twitter": "twitter.com",
-    "x.com": "x.com",
-    "linkedin": "linkedin.com",
-    "ebay": "ebay.com",
-    "walmart": "walmart.com",
-    "target": "target.com",
-}
+from anthropic import Anthropic
+
+logger = logging.getLogger(__name__)
+
+_anthropic_client: Anthropic | None = None
+
+
+def _get_anthropic() -> Anthropic:
+    global _anthropic_client
+    if _anthropic_client is None:
+        _anthropic_client = Anthropic()
+    return _anthropic_client
 
 
 def extract_domain(task_description: str) -> str | None:
     """Extract the target website domain from a task description.
 
-    Returns the domain (e.g., "amazon.com") or None if unidentifiable.
+    Uses regex for explicit URLs/domains first (fast path),
+    falls back to LLM extraction for natural language references.
     """
     # Strategy 1: Look for explicit URLs
-    url_pattern = r"https?://(?:www\.)?([a-zA-Z0-9-]+\.[a-zA-Z]{2,})"
+    url_pattern = r"https?://(?:www\.)?([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})"
     url_match = re.search(url_pattern, task_description)
     if url_match:
         return url_match.group(1).lower()
 
-    # Strategy 2: Keyword matching (case-insensitive)
-    task_lower = task_description.lower()
-    for keyword, domain in KEYWORD_DOMAIN_MAP.items():
-        if keyword in task_lower:
-            return domain
-
-    # Strategy 3: Look for domain-like patterns without protocol
-    domain_pattern = r"\b([a-zA-Z0-9-]+\.(?:com|org|net|io|co|dev|app))\b"
+    # Strategy 2: Look for domain-like patterns without protocol
+    domain_pattern = r"\b([a-zA-Z0-9-]+\.(?:com|org|net|io|co|dev|app|edu|gov|me))\b"
     domain_match = re.search(domain_pattern, task_description)
     if domain_match:
         return domain_match.group(1).lower()
 
-    return None
+    # Strategy 3: LLM extraction (handles "Hacker News", "Amazon", "YouTube", etc.)
+    return _llm_extract_domain(task_description)
+
+
+@lru_cache(maxsize=128)
+def _llm_extract_domain(task_description: str) -> str | None:
+    """Use Claude Haiku to extract the domain from natural language."""
+    client = _get_anthropic()
+
+    response = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=30,
+        system=(
+            "Extract the website domain the user wants to visit. "
+            "Infer the domain even from brand names, product names, or services "
+            "(e.g., 'Amazon' -> amazon.com, 'Gmail' -> mail.google.com, "
+            "'Hacker News' -> news.ycombinator.com, 'Chase' -> chase.com, "
+            "'Netflix' -> netflix.com). "
+            "Respond with ONLY the bare domain. "
+            "If genuinely no website can be inferred, respond with exactly: none"
+        ),
+        messages=[{"role": "user", "content": task_description}],
+        temperature=0.0,
+    )
+
+    result = response.content[0].text.strip().lower()
+
+    if result == "none" or not result or " " in result:
+        logger.debug("LLM domain extraction returned no domain for: %s", task_description[:80])
+        return None
+
+    # Clean up — remove any protocol or path the LLM might have included
+    result = re.sub(r"^https?://", "", result)
+    result = re.sub(r"^www\.", "", result)
+    result = result.split("/")[0]
+
+    logger.info("LLM extracted domain: %s from: %s", result, task_description[:80])
+    return result

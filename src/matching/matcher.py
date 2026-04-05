@@ -2,16 +2,23 @@
 
 Combines domain extraction, action type classification, and pgvector
 cosine similarity search to find the best matching template for a task.
+
+Uses SQL-native pre-filtering and pgvector's <=> operator for fast,
+accurate similarity search. Medium-confidence matches are verified by LLM.
 """
 
 import json
-import os
+import logging
 from dataclasses import dataclass
 from typing import Any
 
-from ..db.embeddings import generate_embedding
+from ..db.client import get_pg_pool
+from ..db.embeddings import build_query_embedding_text, generate_embedding
 from .action_type import classify_action_type
 from .domain import extract_domain
+from .verifier import verify_template_match
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -28,6 +35,23 @@ class TemplateMatch:
     confidence_band: str  # "very_high", "high", "medium"
     domain: str
     action_type: str
+    needs_verification: bool  # True for medium band (0.50-0.74)
+
+
+# SQL query: pre-filter by domain + action_type, rank by cosine similarity
+_SIMILARITY_SQL = """
+SELECT id, task_pattern, steps, handoff_index, parameters, confidence,
+       action_type, domain,
+       1 - (embedding <=> $1::vector) AS similarity
+FROM task_templates
+WHERE confidence >= 0.2
+  AND (domain = $2 OR domain LIKE '%.' || $2 OR $2 LIKE '%.' || domain
+       OR $2 LIKE '%.' || domain OR position($2 in domain) > 0
+       OR position(domain in $2) > 0)
+  AND ($3::text IS NULL OR action_type = $3)
+ORDER BY embedding <=> $1::vector ASC
+LIMIT 5
+"""
 
 
 async def find_matching_template(
@@ -37,10 +61,14 @@ async def find_matching_template(
 
     Returns the best matching TemplateMatch, or None if no match found.
 
+    Layer 1: Extract domain from task description
+    Layer 2: Classify action type
+    Layer 3: SQL-native pgvector similarity search with pre-filtering
+
     Confidence bands:
     - >= 0.90: very_high — execute all rocket steps
     - 0.75-0.89: high — execute all rocket steps
-    - 0.50-0.74: medium — only execute fixed steps
+    - 0.50-0.74: medium — LLM-verified, only execute fixed steps
     - < 0.50: no match
     """
     # Layer 1: Domain extraction
@@ -51,62 +79,34 @@ async def find_matching_template(
     # Layer 2: Action type classification
     action_type = classify_action_type(task_description)
 
-    # Layer 3: Embedding similarity search
-    embedding = generate_embedding(task_description)
-
-    from supabase import create_client
-    client = create_client(
-        os.environ.get("SUPABASE_URL", ""),
-        os.environ.get("SUPABASE_SERVICE_ROLE_KEY", ""),
+    # Layer 3: Embedding similarity search via pgvector
+    query_text = build_query_embedding_text(
+        task_description=task_description,
+        domain=domain,
+        action_type=action_type,
     )
+    embedding = generate_embedding(query_text)
 
-    # Fetch templates and compute similarity in Python (works without pgvector RPC)
-    import numpy as np
+    # Format embedding for pgvector
+    embedding_str = f"[{','.join(str(x) for x in embedding)}]"
 
-    # Fetch all templates with confidence >= 0.2
-    query = client.table("task_templates").select(
-        "id, task_pattern, steps, handoff_index, parameters, confidence, action_type, domain, embedding"
-    ).gte("confidence", 0.2)
-    result = query.execute()
-
-    # Filter by domain match (flexible: handles subdomains like news.ycombinator.com vs ycombinator.com)
-    domain_filtered = []
-    for t in result.data:
-        t_domain = t.get("domain", "")
-        if (t_domain == domain
-            or t_domain.endswith(f".{domain}")
-            or domain.endswith(f".{t_domain}")
-            or domain in t_domain
-            or t_domain in domain):
-            domain_filtered.append(t)
-    result_data = domain_filtered if domain_filtered else result.data
-
-    rows = []
-    query_vec = np.array(embedding)
-    query_norm = np.linalg.norm(query_vec)
-    for t in result_data:
-        t_emb = t.get("embedding")
-        if not t_emb:
-            continue
-        if isinstance(t_emb, str):
-            t_emb = json.loads(t_emb)
-        t_vec = np.array(t_emb)
-        t_norm = np.linalg.norm(t_vec)
-        if query_norm == 0 or t_norm == 0:
-            continue
-        sim = float(np.dot(query_vec, t_vec) / (query_norm * t_norm))
-        t["similarity"] = sim
-        rows.append(t)
-    rows.sort(key=lambda x: x.get("similarity", 0), reverse=True)
+    pool = await get_pg_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            _SIMILARITY_SQL,
+            embedding_str,
+            domain,
+            action_type,
+        )
 
     if not rows:
         return None
 
     row = rows[0]
-    similarity = float(row.get("similarity", 0))
+    similarity = float(row["similarity"])
 
-    # Apply similarity threshold — 0.75 minimum for any match
-    if similarity < 0.75:
+    # Apply similarity threshold — 0.50 minimum (medium band reaches LLM verifier)
+    if similarity < 0.50:
         return None
 
     # Determine confidence band
@@ -117,10 +117,27 @@ async def find_matching_template(
     else:
         band = "medium"
 
-    steps = row.get("steps", [])
+    # LLM verification for medium-confidence matches
+    needs_verification = band == "medium"
+    if needs_verification:
+        logger.info(
+            "Medium-confidence match (%.3f), running LLM verification",
+            similarity,
+        )
+        is_valid = await verify_template_match(
+            task_description=task_description,
+            template_task_pattern=row["task_pattern"],
+            domain=row["domain"],
+            similarity=similarity,
+        )
+        if not is_valid:
+            logger.info("LLM verification rejected the match")
+            return None
+
+    steps = row["steps"]
     if isinstance(steps, str):
         steps = json.loads(steps)
-    parameters = row.get("parameters", [])
+    parameters = row["parameters"]
     if isinstance(parameters, str):
         parameters = json.loads(parameters)
 
@@ -128,11 +145,12 @@ async def find_matching_template(
         template_id=str(row["id"]),
         task_pattern=row["task_pattern"],
         steps=steps,
-        handoff_index=row.get("handoff_index", 0),
+        handoff_index=row["handoff_index"] or 0,
         parameters=parameters,
         similarity=similarity,
-        confidence=float(row.get("confidence", 0.5)),
+        confidence=float(row["confidence"]),
         confidence_band=band,
-        domain=row.get("domain", domain),
-        action_type=row.get("action_type", action_type or "unknown"),
+        domain=row["domain"],
+        action_type=row["action_type"] or action_type or "unknown",
+        needs_verification=needs_verification,
     )

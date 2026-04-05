@@ -5,10 +5,14 @@ for task_templates in Supabase.
 """
 
 import json
+import logging
 import os
 from typing import Any
 
-from .embeddings import generate_embedding
+from .embeddings import build_embedding_text, generate_embedding
+from .site_knowledge import get_site_knowledge
+
+logger = logging.getLogger(__name__)
 
 
 def _get_supabase():
@@ -28,11 +32,30 @@ async def create_template(
     steps: list[dict[str, Any]],
     handoff_index: int,
 ) -> str:
-    """Create a new task template. Generates the embedding automatically.
+    """Create a new task template. Generates a rich composite embedding.
+
+    Builds a structured text from task_pattern + steps + parameters + domain
+    + site_knowledge context, then embeds the composite for deeper matching.
 
     Returns the UUID of the created template.
     """
-    embedding = generate_embedding(task_pattern)
+    # Fetch site knowledge for domain context (gracefully returns None)
+    site_knowledge = None
+    try:
+        site_knowledge = await get_site_knowledge(domain)
+    except Exception:
+        logger.debug("Could not fetch site_knowledge for %s", domain)
+
+    rich_text = build_embedding_text(
+        task_pattern=task_pattern,
+        steps=steps,
+        parameters=parameters,
+        domain=domain,
+        action_type=action_type,
+        site_knowledge=site_knowledge,
+    )
+    logger.info("Embedding rich text (%d chars): %s", len(rich_text), rich_text[:200])
+    embedding = generate_embedding(rich_text)
 
     client = _get_supabase()
     result = client.table("task_templates").insert({

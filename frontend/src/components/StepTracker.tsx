@@ -7,26 +7,36 @@ interface StepTrackerProps {
 }
 
 export function StepTracker({ steps, phase, currentStep }: StepTrackerProps) {
-  const isActive = phase === 'rocket' || phase === 'agent';
+  const isActive =
+    phase === 'rocket' || phase === 'agent' || phase === 'learning';
+  const lastStepDescription = steps[steps.length - 1]?.description;
+  const showCurrentStep = Boolean(
+    isActive &&
+    currentStep &&
+    currentStep !== lastStepDescription,
+  );
 
   if (steps.length === 0 && !isActive) return null;
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col gap-0.5">
       {steps.map((step, i) => {
         const fast = step.type === 'playwright';
         return (
           <div
             key={step.id}
-            className={`flex items-center gap-2.5 py-[5px] text-[13px] leading-tight ${
+            className={`flex items-center gap-2.5 py-[6px] px-1 text-[13px] leading-tight rounded-lg transition-colors ${
               fast ? 'anim-step-fast' : 'anim-step-slow'
             }`}
             style={fast ? { animationDelay: `${i * 25}ms` } : undefined}
           >
-            <div className={`w-[3px] h-3.5 rounded-full flex-shrink-0 ${
-              fast ? 'bg-lime' : 'bg-sky/40'
-            }`} />
-            <span className={`flex-1 truncate ${fast ? 'text-text' : 'text-text-secondary'}`}>
+            <div
+              className={`w-[3px] h-4 rounded-full flex-shrink-0 ${fast ? 'bg-lime' : 'bg-sky/40'}`}
+              style={{
+                boxShadow: fast ? '0 0 6px rgba(200,255,0,0.2)' : 'none',
+              }}
+            />
+            <span className={`flex-1 truncate ${fast ? 'text-text' : 'text-text-dim'}`}>
               {step.description}
             </span>
             {step.durationMs != null && (
@@ -40,10 +50,9 @@ export function StepTracker({ steps, phase, currentStep }: StepTrackerProps) {
         );
       })}
 
-      {/* Currently executing step */}
-      {isActive && currentStep && (
-        <div className="flex items-center gap-2.5 py-[5px] text-[13px]">
-          <div className={`w-[3px] h-3.5 rounded-full flex-shrink-0 ${
+      {showCurrentStep && (
+        <div className="flex items-center gap-2.5 py-[6px] px-1 text-[13px]">
+          <div className={`w-[3px] h-4 rounded-full flex-shrink-0 ${
             phase === 'rocket' ? 'bg-lime dot-pulse' : 'bg-sky/40 dot-pulse'
           }`} />
           <span className={`flex-1 truncate ${

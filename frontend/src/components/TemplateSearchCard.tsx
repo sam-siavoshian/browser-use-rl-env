@@ -18,14 +18,12 @@ export function TemplateSearchCard({ task, onRace, onLearnInstead, onDismiss }: 
   const [result, setResult] = useState<TemplateSearchResult | null>(null);
   const [dots, setDots] = useState(0);
 
-  // Animate dots while searching
   useEffect(() => {
     if (phase !== 'searching') return;
     const id = setInterval(() => setDots(d => (d + 1) % 4), 400);
     return () => clearInterval(id);
   }, [phase]);
 
-  // Run the search
   useEffect(() => {
     let cancelled = false;
 
@@ -45,20 +43,19 @@ export function TemplateSearchCard({ task, onRace, onLearnInstead, onDismiss }: 
 
   return (
     <div className="w-full max-w-[520px] anim-scale-up">
-      <div className="rounded-2xl border overflow-hidden transition-all duration-500"
+      <div
+        className="saas-card overflow-hidden transition-all duration-500"
         style={{
           borderColor: phase === 'found' ? 'rgba(200,255,0,0.15)' :
                        phase === 'not_found' ? 'rgba(251,191,36,0.15)' :
-                       'rgba(34,34,34,0.6)',
+                       undefined,
           background: phase === 'found' ? 'rgba(200,255,0,0.03)' :
                       phase === 'not_found' ? 'rgba(251,191,36,0.03)' :
-                      '#111111',
+                      undefined,
         }}
       >
         {/* Header */}
-        <div className="flex items-center gap-2.5 px-4 py-3 border-b"
-          style={{ borderColor: 'rgba(34,34,34,0.5)' }}
-        >
+        <div className="flex items-center gap-2.5 px-4 py-3 border-b border-border-subtle/50">
           <div className="flex items-center gap-2">
             {phase === 'searching' && (
               <LoadingPinwheel active size={14} className="text-lime/50" />
@@ -76,7 +73,7 @@ export function TemplateSearchCard({ task, onRace, onLearnInstead, onDismiss }: 
               Template Search
             </span>
           </div>
-          <button type="button" onClick={onDismiss} className="ml-auto text-text-muted hover:text-text transition-colors p-0.5" aria-label="Dismiss">
+          <button type="button" onClick={onDismiss} className="ml-auto text-text-muted hover:text-text transition-colors p-1 rounded-lg hover:bg-white/5" aria-label="Dismiss">
             <XIcon size={14} />
           </button>
         </div>
@@ -84,18 +81,17 @@ export function TemplateSearchCard({ task, onRace, onLearnInstead, onDismiss }: 
         {/* Body */}
         <div className="px-4 py-4">
 
-          {/* Searching */}
           {phase === 'searching' && (
             <div className="space-y-3">
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1">
-                  <span className="text-[10px] font-mono text-lime/60 bg-lime/5 px-1.5 py-0.5 rounded">tool_call</span>
+                  <span className="text-[10px] font-mono text-lime/60 bg-lime/5 px-1.5 py-0.5 rounded-md">tool_call</span>
                 </div>
                 <span className="text-[13px] text-text-dim">
                   query_template_db{'.'.repeat(dots)}
                 </span>
               </div>
-              <div className="font-mono text-[11px] text-text-muted bg-bg/50 rounded-lg px-3 py-2.5 border border-border-subtle">
+              <div className="font-mono text-[11px] text-text-muted saas-inset px-3 py-2.5">
                 <span className="text-lime/40">{'>'}</span> Embedding task description{'.'.repeat(dots)}<br/>
                 <span className="text-lime/40">{'>'}</span> Searching pgvector for cosine similarity{'.'.repeat(dots)}<br/>
                 <span className="text-lime/40">{'>'}</span> Matching domain + action type{'.'.repeat(dots)}
@@ -103,17 +99,16 @@ export function TemplateSearchCard({ task, onRace, onLearnInstead, onDismiss }: 
             </div>
           )}
 
-          {/* Found */}
           {phase === 'found' && result && (
             <div className="space-y-3 anim-fade-in">
               <div className="flex items-center gap-3">
-                <span className="text-[10px] font-mono text-lime bg-lime/10 px-1.5 py-0.5 rounded">match</span>
+                <span className="text-[10px] font-mono text-lime bg-lime/10 px-1.5 py-0.5 rounded-md">match</span>
                 <span className="text-[13px] text-lime font-medium">
                   Template found!
                 </span>
               </div>
 
-              <div className="font-mono text-[11px] bg-bg/50 rounded-lg px-3 py-2.5 border border-lime/10 space-y-1">
+              <div className="font-mono text-[11px] saas-inset px-3 py-2.5 space-y-1">
                 <div className="flex justify-between">
                   <span className="text-text-muted">pattern</span>
                   <span className="text-text-dim">{result.task_pattern}</span>
@@ -134,18 +129,17 @@ export function TemplateSearchCard({ task, onRace, onLearnInstead, onDismiss }: 
 
               <button
                 onClick={onRace}
-                className="w-full h-11 rounded-xl font-medium text-[13px] tracking-wide bg-lime text-bg hover:brightness-110 active:scale-[0.98] transition-all"
+                className="w-full h-11 rounded-xl font-medium text-[13px] tracking-wide bg-lime text-bg hover:brightness-110 active:scale-[0.98] transition-all saas-btn-primary"
               >
                 Launch Race
               </button>
             </div>
           )}
 
-          {/* Not found */}
           {phase === 'not_found' && (
             <div className="space-y-3 anim-fade-in">
               <div className="flex items-center gap-3">
-                <span className="text-[10px] font-mono text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded">no_match</span>
+                <span className="text-[10px] font-mono text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded-md">no_match</span>
                 <span className="text-[13px] text-amber-400 font-medium">
                   No template found
                 </span>
@@ -158,13 +152,13 @@ export function TemplateSearchCard({ task, onRace, onLearnInstead, onDismiss }: 
               <div className="flex gap-2">
                 <button
                   onClick={onLearnInstead}
-                  className="flex-1 h-10 rounded-xl font-medium text-[13px] bg-amber-400/10 border border-amber-400/20 text-amber-400 hover:bg-amber-400/15 transition-all"
+                  className="flex-1 h-10 rounded-xl font-medium text-[13px] bg-amber-400/10 border border-amber-400/20 text-amber-400 hover:bg-amber-400/15 transition-all saas-btn"
                 >
                   Learn This Task
                 </button>
                 <button
                   onClick={onRace}
-                  className="h-10 px-4 rounded-xl text-[12px] text-text-muted border border-border hover:border-border/80 transition-all"
+                  className="h-10 px-4 rounded-xl text-[12px] text-text-muted border border-border hover:border-border/80 transition-all saas-btn"
                 >
                   Race anyway
                 </button>
@@ -172,13 +166,12 @@ export function TemplateSearchCard({ task, onRace, onLearnInstead, onDismiss }: 
             </div>
           )}
 
-          {/* Error */}
           {phase === 'error' && (
             <div className="space-y-3 anim-fade-in">
               <p className="text-[12px] text-red-400">Search failed. You can still race (will use full agent).</p>
               <button
                 onClick={onRace}
-                className="w-full h-10 rounded-xl font-medium text-[13px] bg-surface border border-border text-text-dim hover:border-lime/20 transition-all"
+                className="w-full h-10 rounded-xl font-medium text-[13px] bg-surface border border-border text-text-dim hover:border-lime/20 transition-all saas-btn"
               >
                 Race without template
               </button>

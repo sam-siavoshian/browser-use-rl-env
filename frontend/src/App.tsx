@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { AppSidebar, MobileTopBar } from './components/AppSidebar';
 import { TaskInput } from './components/TaskInput';
 import { BrowserEmbed } from './components/BrowserEmbed';
 import { Timer } from './components/Timer';
@@ -29,6 +31,8 @@ function App() {
   const navigate = useNavigate();
   const view = useMemo(() => pathToView(location.pathname), [location.pathname]);
 
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [learnStarting, setLearnStarting] = useState(false);
   const [raceStarting, setRaceStarting] = useState(false);
   const [currentTask, setCurrentTask] = useState('');
@@ -64,7 +68,6 @@ function App() {
     }
   }, [baseStatus?.status, rocketStatus?.status, navigate]);
 
-  /** Cold deep-links without an active session */
   useEffect(() => {
     if (view === 'learning' && !learnId && !learnStarting) {
       navigate('/', { replace: true });
@@ -77,7 +80,6 @@ function App() {
     }
   }, [view, baselineId, raceStarting, navigate]);
 
-  /** Unknown paths → home */
   useEffect(() => {
     const p = location.pathname.replace(/\/+$/, '') || '/';
     const allowed = ['/', '/learn', '/race', '/results'];
@@ -86,15 +88,13 @@ function App() {
     }
   }, [location.pathname, navigate]);
 
-  // When Race is clicked, show the search card inline (don't change view)
   const [searchingTask, setSearchingTask] = useState<string | null>(null);
 
   const launch = useCallback((task: string) => {
     setCurrentTask(task);
-    setSearchingTask(task);  // shows search card below input
+    setSearchingTask(task);
   }, []);
 
-  // Actually start the race (called from search card)
   const startRace = useCallback(async () => {
     const task = searchingTask || currentTask;
     setSearchingTask(null);
@@ -155,192 +155,210 @@ function App() {
     ? baseTimer.elapsedMs / rocketTimer.elapsedMs : null;
 
   return (
-    <div className={`h-screen min-h-0 flex flex-col relative ${view === 'idle' ? 'overflow-y-auto' : 'overflow-hidden'}`} style={{ background: '#0a0a0a' }}>
-      <div className="fixed inset-0 pointer-events-none z-0">
-        <div className="absolute top-[-300px] left-1/2 -translate-x-1/2 w-[700px] h-[700px] rounded-full"
-          style={{ background: 'radial-gradient(circle, rgba(200,255,0,0.025) 0%, transparent 65%)' }} />
-      </div>
+    <div className="h-screen min-h-0 flex flex-col md:flex-row" style={{ background: '#09090b' }}>
+      {/* Sidebar */}
+      <AppSidebar
+        templates={templates}
+        sidebarOpen={sidebarOpen}
+        onToggle={() => setSidebarOpen(!sidebarOpen)}
+        collapsed={sidebarCollapsed}
+        onCollapse={setSidebarCollapsed}
+      />
 
-      {/* ━━━ IDLE ━━━ */}
-      {view === 'idle' && (
-        <div className="flex-1 flex flex-col relative z-10">
-          {/* Pixel trail — inside idle so it receives mouse events */}
-          <PixelBackground />
+      {/* Main content area */}
+      <div className={`flex-1 min-w-0 flex flex-col relative ${view === 'idle' ? 'overflow-y-auto' : 'overflow-hidden'}`}>
+        {/* Mobile top bar */}
+        <MobileTopBar onToggle={() => setSidebarOpen(!sidebarOpen)} />
 
-          {/* Content — top inset so the hero is not flush with the viewport */}
-          <div className="flex-1 flex flex-col items-center justify-start px-6 pt-16 sm:pt-20 pb-20 relative z-10">
-
-            {/* Headline */}
-            <div className="text-center mb-6">
-              <h1 className="font-serif text-[60px] leading-[1.05] tracking-[-0.01em] text-text italic anim-fade-up">
-                Make browser-use<br />agents fly.
-              </h1>
-              <p className="text-[14px] text-text-dim mt-8 max-w-[400px] mx-auto leading-[1.6] anim-fade-up" style={{ animationDelay: '80ms' }}>
-                <strong className="text-amber-400">Learn</strong> a task, then <strong className="text-lime">Race</strong> to watch Playwright
-                blast through the known steps while the agent handles the rest.
-              </p>
-            </div>
-
-            {/* Input + search card dropdown */}
-            <div className="w-full flex flex-col items-center mb-16 anim-fade-up" style={{ animationDelay: '140ms' }}>
-              <TaskInput onRun={launch} onLearn={learn} isRunning={false} />
-
-              {/* Search card — slides open below input when Race is clicked */}
-              {searchingTask && (
-                <div className="mt-3 w-full max-w-[520px]">
-                  <TemplateSearchCard
-                    task={searchingTask}
-                    onRace={startRace}
-                    onLearnInstead={() => learn(searchingTask)}
-                    onDismiss={() => setSearchingTask(null)}
-                  />
-                </div>
-              )}
-            </div>
-
-            {/* Compact analogy with animated speed bars */}
-            <div className="mt-10 anim-fade-up" style={{ animationDelay: '200ms' }}>
-              <Analogy />
-            </div>
-
-            {/* Architecture diagram */}
-            <div className="mt-16 anim-fade-up" style={{ animationDelay: '260ms' }}>
-              <Architecture />
-            </div>
-
-            {/* Template pills */}
-            {templates.length > 0 && (
-              <div className="mt-5 anim-fade-up" style={{ animationDelay: '300ms' }}>
-                <LearningHistory templates={templates} onSelect={setSelectedTemplate} selectedId={selectedTemplate?.id} />
-              </div>
-            )}
-          </div>
+        {/* Ambient glow */}
+        <div className="fixed inset-0 pointer-events-none z-0">
+          <div className="absolute top-[-300px] left-1/2 -translate-x-1/2 w-[700px] h-[700px] rounded-full"
+            style={{ background: 'radial-gradient(circle, rgba(200,255,0,0.02) 0%, transparent 65%)' }} />
         </div>
-      )}
 
-      {/* ━━━ LEARNING ━━━ */}
-      {view === 'learning' && (
-        <div className="flex-1 flex flex-col min-h-0 relative z-10 anim-fade-in">
-          <header className="flex-shrink-0 flex items-center gap-4 px-5 h-11 border-b border-border-subtle">
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <div className="w-[6px] h-[6px] rounded-full bg-amber-400 dot-pulse" />
-              <span className="text-[13px] font-medium text-amber-400">Learning Mode</span>
-            </div>
-            <div className="flex-1 text-[12px] text-text-muted truncate font-mono min-w-0">{currentTask}</div>
-            <Timer elapsedMs={learnTimer.elapsedMs} isComplete={learnStatus?.status === 'complete'} variant="baseline" />
-          </header>
-          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
-            <div className="flex flex-col items-center p-6 pb-10">
-            <div className="w-full max-w-3xl">
-              <div className="flex items-center gap-2.5 mb-3">
-                <PhaseIndicator phase={learnPh} />
-                <span className="text-[13px] text-text-dim">
-                  {learnPh === 'agent' && 'Agent running the task...'}
-                  {learnPh === 'learning' && 'Extracting template from trace...'}
-                  {learnPh === 'complete' && 'Template learned!'}
-                  {learnPh === 'error' && 'Learning failed'}
-                  {learnPh === 'idle' && 'Starting...'}
-                </span>
+        {/* ═══ IDLE VIEW ═══ */}
+        {view === 'idle' && (
+          <div className="flex-1 flex flex-col relative z-10">
+            <div className="flex-1 flex flex-col items-center justify-start px-6 pt-12 sm:pt-16 pb-20 relative z-10">
+              {/* Hero */}
+              <div className="text-center mb-8">
+                <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-text-muted mb-4 anim-fade-up">
+                  Browser Automation
+                </p>
+                <h1 className="font-serif text-[52px] sm:text-[60px] leading-[1.05] tracking-[-0.02em] text-text italic anim-fade-up" style={{ animationDelay: '40ms' }}>
+                  Make browser-use<br />agents fly.
+                </h1>
+                <p className="text-[14px] text-text-dim mt-6 max-w-[420px] mx-auto leading-[1.7] anim-fade-up" style={{ animationDelay: '80ms' }}>
+                  <strong className="text-amber-400">Learn</strong> a task, then <strong className="text-lime">Race</strong> to watch Playwright
+                  blast through the known steps while the agent handles the rest.
+                </p>
               </div>
-              <BrowserEmbed liveUrl={learnStatus?.live_url ?? null} phase={learnPh === 'learning' ? 'agent' : learnPh} />
-              <div className="mt-4">
-                <StepTracker steps={learnStatus?.steps ?? []} phase={learnPh} currentStep={learnStatus?.current_step ?? ''} />
-              </div>
-              {learnStatus?.status === 'complete' && (
-                <div className="mt-6 p-5 rounded-xl border border-lime/20 bg-lime/5 text-center anim-scale-up">
-                  <div className="text-lime text-lg font-semibold mb-1">Template Learned!</div>
-                  <p className="text-[13px] text-text-dim mb-4">
-                    Now type a <strong>similar</strong> task and hit <strong className="text-lime">Race</strong> to see the speedup.
-                  </p>
-                  <button onClick={reset} className="px-6 py-2.5 bg-lime text-bg rounded-xl text-[13px] font-medium hover:brightness-110 transition-all">
-                    Race with a similar task
-                  </button>
-                </div>
-              )}
-              {learnStatus?.status === 'error' && (
-                <div className="mt-6 p-5 rounded-xl border border-red-500/20 bg-red-500/5 text-center">
-                  <div className="text-red-400 text-sm font-medium mb-2">Learning Failed</div>
-                  <p className="text-[12px] text-text-muted mb-3">{learnStatus.error}</p>
-                  <button onClick={reset} className="px-5 py-2 bg-surface border border-border rounded-xl text-[13px] text-text-dim hover:border-lime/30 transition-all">
-                    Try again
-                  </button>
-                </div>
-              )}
-            </div>
-            </div>
-          </div>
-        </div>
-      )}
 
-      {/* ━━━ RACING ━━━ */}
-      {view === 'racing' && (
-        <div className="flex-1 flex flex-col min-h-0 relative z-10 anim-fade-in">
-          <header className="flex-shrink-0 flex items-center gap-4 px-5 h-11 border-b border-border-subtle">
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <div className="w-[6px] h-[6px] rounded-full bg-lime" />
-              <span className="text-[13px] font-medium text-text-dim">Rocket Booster</span>
-            </div>
-            <div className="flex-1">
-              <TaskInput onRun={launch} isRunning={isRunning} onStop={reset} compact />
-            </div>
-            <span className="flex items-center gap-1.5 text-[11px] font-mono text-lime flex-shrink-0">
-              <span className="w-[5px] h-[5px] rounded-full bg-lime dot-pulse" /> Live
-            </span>
-          </header>
-          <div className="flex-1 grid grid-cols-[1fr_1px_1fr] overflow-hidden">
-            {/* Left: Baseline */}
-            <div className="flex flex-col p-4 overflow-hidden">
-              <div className="flex items-center justify-between mb-2.5">
-                <div className="flex items-center gap-2.5">
-                  <span className="text-[13px] font-medium text-text-dim">Without Booster</span>
-                  <PhaseIndicator phase={basePh} />
-                </div>
-                <Timer elapsedMs={baseTimer.elapsedMs} isComplete={baseStatus?.status === 'complete'} variant="baseline" />
-              </div>
-              <BrowserEmbed liveUrl={baseStatus?.live_url ?? null} phase={basePh} />
-              <div className="mt-2.5 flex-1 overflow-y-auto">
-                <StepTracker steps={baseStatus?.steps ?? []} phase={basePh} currentStep={baseStatus?.current_step ?? ''} />
-              </div>
-            </div>
-            {/* Divider */}
-            <div className="bg-border-subtle relative">
-              {liveSpeedup && liveSpeedup > 1.2 && (
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 anim-scale-up">
-                  <div className="glass border border-lime/15 rounded-full px-4 py-1.5 glow-breathe whitespace-nowrap">
-                    <span className="font-mono text-sm font-bold text-lime">{liveSpeedup.toFixed(1)}x</span>
+              {/* Task input */}
+              <div className="w-full flex flex-col items-center mb-12 anim-fade-up" style={{ animationDelay: '140ms' }}>
+                <TaskInput onRun={launch} onLearn={learn} isRunning={false} />
+
+                {searchingTask && (
+                  <div className="mt-4 w-full max-w-[520px]">
+                    <TemplateSearchCard
+                      task={searchingTask}
+                      onRace={startRace}
+                      onLearnInstead={() => learn(searchingTask)}
+                      onDismiss={() => setSearchingTask(null)}
+                    />
                   </div>
+                )}
+              </div>
+
+              {/* Analogy */}
+              <div className="mt-6 anim-fade-up" style={{ animationDelay: '200ms' }}>
+                <Analogy />
+              </div>
+
+              {/* Architecture */}
+              <div className="mt-14 anim-fade-up" style={{ animationDelay: '260ms' }}>
+                <Architecture />
+              </div>
+
+              {/* Learned templates */}
+              {templates.length > 0 && (
+                <div className="mt-8 anim-fade-up" style={{ animationDelay: '300ms' }}>
+                  <LearningHistory templates={templates} onSelect={setSelectedTemplate} selectedId={selectedTemplate?.id} />
                 </div>
               )}
             </div>
-            {/* Right: Rocket */}
-            <div className="flex flex-col p-4 overflow-hidden">
-              <div className="flex items-center justify-between mb-2.5">
-                <div className="flex items-center gap-2.5">
-                  <span className="text-[13px] font-medium text-lime">With Booster</span>
-                  <PhaseIndicator phase={rocketPh} />
-                </div>
-                <Timer elapsedMs={rocketTimer.elapsedMs} isComplete={rocketStatus?.status === 'complete'} variant="rocket" />
+          </div>
+        )}
+
+        {/* ═══ LEARNING VIEW ═══ */}
+        {view === 'learning' && (
+          <div className="flex-1 flex flex-col min-h-0 relative z-10 anim-fade-in">
+            <header className="flex-shrink-0 flex items-center gap-4 px-5 h-12 border-b border-border-subtle bg-surface/30 backdrop-blur-sm">
+              <div className="flex items-center gap-2.5 flex-shrink-0">
+                <div className="w-[7px] h-[7px] rounded-full bg-amber-400 dot-pulse" />
+                <span className="text-[13px] font-medium text-amber-400">Learning Mode</span>
               </div>
-              <BrowserEmbed liveUrl={rocketStatus?.live_url ?? null} phase={rocketPh} />
-              <div className="mt-2.5 flex-1 overflow-y-auto">
-                <StepTracker steps={rocketStatus?.steps ?? []} phase={rocketPh} currentStep={rocketStatus?.current_step ?? ''} />
+              <div className="flex-1 text-[12px] text-text-muted truncate font-mono min-w-0">{currentTask}</div>
+              <Timer elapsedMs={learnTimer.elapsedMs} isComplete={learnStatus?.status === 'complete'} variant="baseline" />
+            </header>
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+              <div className="flex flex-col items-center p-6 pb-10">
+                <div className="w-full max-w-3xl">
+                  <div className="flex items-center gap-2.5 mb-4">
+                    <PhaseIndicator phase={learnPh} />
+                    <span className="text-[13px] text-text-dim">
+                      {learnPh === 'agent' && 'Agent running the task...'}
+                      {learnPh === 'learning' && 'Extracting template from trace...'}
+                      {learnPh === 'complete' && 'Template learned!'}
+                      {learnPh === 'error' && 'Learning failed'}
+                      {learnPh === 'idle' && 'Starting...'}
+                    </span>
+                  </div>
+                  <BrowserEmbed liveUrl={learnStatus?.live_url ?? null} phase={learnPh === 'learning' ? 'agent' : learnPh} />
+                  <div className="mt-5">
+                    <p className="text-[10px] font-mono uppercase tracking-[0.22em] text-text-muted mb-2.5">Activity</p>
+                    <div className="saas-inset px-4 py-3 max-h-[min(42vh,400px)] overflow-y-auto">
+                      <StepTracker steps={learnStatus?.steps ?? []} phase={learnPh} currentStep={learnStatus?.current_step ?? ''} />
+                    </div>
+                  </div>
+                  {learnStatus?.status === 'complete' && (
+                    <div className="mt-8 saas-card p-6 text-center anim-scale-up" style={{ borderColor: 'rgba(200,255,0,0.15)', background: 'rgba(200,255,0,0.03)' }}>
+                      <div className="text-lime text-lg font-semibold mb-1.5">Template Learned!</div>
+                      <p className="text-[13px] text-text-dim mb-5">
+                        Now type a <strong>similar</strong> task and hit <strong className="text-lime">Race</strong> to see the speedup.
+                      </p>
+                      <button onClick={reset} className="px-7 py-3 bg-lime text-bg rounded-xl text-[13px] font-medium saas-btn-primary">
+                        Race with a similar task
+                      </button>
+                    </div>
+                  )}
+                  {learnStatus?.status === 'error' && (
+                    <div className="mt-8 saas-card p-6 text-center" style={{ borderColor: 'rgba(239,68,68,0.15)', background: 'rgba(239,68,68,0.03)' }}>
+                      <div className="text-red-400 text-sm font-medium mb-2">Learning Failed</div>
+                      <p className="text-[12px] text-text-muted mb-4">{learnStatus.error}</p>
+                      <button onClick={reset} className="px-6 py-2.5 bg-surface border border-border rounded-xl text-[13px] text-text-dim saas-btn">
+                        Try again
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
-          <div className="flex items-center justify-between px-5 h-8 border-t border-border-subtle text-[11px] font-mono text-text-muted">
-            <span className="truncate max-w-sm">{currentTask}</span>
-            <span>{(baseStatus?.steps.length ?? 0) + (rocketStatus?.steps.length ?? 0)} steps</span>
-          </div>
-        </div>
-      )}
+        )}
 
-      {/* ━━━ RESULTS ━━━ */}
-      {view === 'results' && (!baseStatus || !rocketStatus) && (
-        <Navigate to="/" replace />
-      )}
-      {view === 'results' && baseStatus && rocketStatus && (
-        <ComparisonCard baselineDurationMs={baseStatus.duration_ms} rocketDurationMs={rocketStatus.duration_ms} onReset={reset} />
-      )}
+        {/* ═══ RACING VIEW ═══ */}
+        {view === 'racing' && (
+          <div className="flex-1 flex flex-col min-h-0 relative z-10 anim-fade-in">
+            <header className="flex-shrink-0 flex items-center gap-4 px-5 h-12 border-b border-border-subtle bg-surface/30 backdrop-blur-sm">
+              <div className="flex items-center gap-2.5 flex-shrink-0">
+                <div className="w-[7px] h-[7px] rounded-full bg-lime" />
+                <span className="text-[13px] font-medium text-text-dim">Rocket Booster</span>
+              </div>
+              <div className="flex-1">
+                <TaskInput onRun={launch} isRunning={isRunning} onStop={reset} compact />
+              </div>
+              <span className="flex items-center gap-1.5 text-[11px] font-mono text-lime flex-shrink-0">
+                <span className="w-[5px] h-[5px] rounded-full bg-lime dot-pulse" /> Live
+              </span>
+            </header>
+            <div className="flex-1 grid grid-cols-[1fr_1px_1fr] overflow-hidden">
+              {/* Baseline column */}
+              <div className="flex flex-col p-4 overflow-hidden">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-[13px] font-medium text-text-dim">Without Booster</span>
+                    <PhaseIndicator phase={basePh} />
+                  </div>
+                  <Timer elapsedMs={baseTimer.elapsedMs} isComplete={baseStatus?.status === 'complete'} variant="baseline" />
+                </div>
+                <BrowserEmbed liveUrl={baseStatus?.live_url ?? null} phase={basePh} />
+                <div className="mt-3 flex-1 overflow-y-auto saas-inset-sm px-3 py-2">
+                  <StepTracker steps={baseStatus?.steps ?? []} phase={basePh} currentStep={baseStatus?.current_step ?? ''} />
+                </div>
+              </div>
+
+              {/* Divider with live speedup */}
+              <div className="bg-border-subtle relative">
+                {liveSpeedup && liveSpeedup > 1.2 && (
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 anim-scale-up">
+                    <div className="saas-card-elevated border-lime/15 rounded-full px-4 py-1.5 glow-breathe whitespace-nowrap">
+                      <span className="font-mono text-sm font-bold text-lime">{liveSpeedup.toFixed(1)}x</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Rocket column */}
+              <div className="flex flex-col p-4 overflow-hidden">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-[13px] font-medium text-lime">With Booster</span>
+                    <PhaseIndicator phase={rocketPh} />
+                  </div>
+                  <Timer elapsedMs={rocketTimer.elapsedMs} isComplete={rocketStatus?.status === 'complete'} variant="rocket" />
+                </div>
+                <BrowserEmbed liveUrl={rocketStatus?.live_url ?? null} phase={rocketPh} />
+                <div className="mt-3 flex-1 overflow-y-auto saas-inset-sm px-3 py-2">
+                  <StepTracker steps={rocketStatus?.steps ?? []} phase={rocketPh} currentStep={rocketStatus?.current_step ?? ''} />
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center justify-between px-5 h-9 border-t border-border-subtle bg-surface/20 text-[11px] font-mono text-text-muted">
+              <span className="truncate max-w-sm">{currentTask}</span>
+              <span>{(baseStatus?.steps.length ?? 0) + (rocketStatus?.steps.length ?? 0)} steps</span>
+            </div>
+          </div>
+        )}
+
+        {/* ═══ RESULTS VIEW ═══ */}
+        {view === 'results' && (!baseStatus || !rocketStatus) && (
+          <Navigate to="/" replace />
+        )}
+        {view === 'results' && baseStatus && rocketStatus && (
+          <ComparisonCard baselineDurationMs={baseStatus.duration_ms} rocketDurationMs={rocketStatus.duration_ms} onReset={reset} />
+        )}
+      </div>
     </div>
   );
 }

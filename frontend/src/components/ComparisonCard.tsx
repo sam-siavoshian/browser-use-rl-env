@@ -26,11 +26,11 @@ export function ComparisonCard({ baselineDurationMs, rocketDurationMs, onReset }
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center anim-fade-in"
-      style={{ background: 'rgba(5,5,5,0.88)', backdropFilter: 'blur(24px)' }}
+      style={{ background: 'rgba(5,5,7,0.9)', backdropFilter: 'blur(24px)' }}
     >
       <div className="w-full max-w-md mx-6">
 
-        {/* The number — peak moment */}
+        {/* The speedup number */}
         {stage >= 1 && (
           <div className="text-center mb-14 anim-number">
             <p className="text-[11px] font-mono uppercase tracking-[0.25em] text-text-muted mb-5">
@@ -42,14 +42,14 @@ export function ComparisonCard({ baselineDurationMs, rocketDurationMs, onReset }
           </div>
         )}
 
-        {/* Bars — anchoring + contrast */}
+        {/* Comparison bars */}
         {stage >= 2 && (
-          <div className="space-y-2 anim-fade-up">
+          <div className="space-y-3 anim-fade-up">
             <div className="flex items-center gap-3">
               <span className="w-12 text-right font-mono text-[13px] text-text-muted tabular-nums">{baselineSec}s</span>
-              <div className="flex-1 h-5 bg-surface rounded-lg overflow-hidden">
+              <div className="flex-1 h-6 rounded-xl overflow-hidden saas-inset-sm">
                 <div
-                  className="h-full rounded-lg origin-left"
+                  className="h-full rounded-xl origin-left"
                   style={{ width: '100%', background: 'rgba(255,107,53,0.15)', animation: 'bar-grow 0.9s cubic-bezier(0.16,1,0.3,1) both' }}
                 />
               </div>
@@ -57,9 +57,9 @@ export function ComparisonCard({ baselineDurationMs, rocketDurationMs, onReset }
             </div>
             <div className="flex items-center gap-3">
               <span className="w-12 text-right font-mono text-[13px] text-lime font-medium tabular-nums">{rocketSec}s</span>
-              <div className="flex-1 h-5 bg-surface rounded-lg overflow-hidden">
+              <div className="flex-1 h-6 rounded-xl overflow-hidden saas-inset-sm">
                 <div
-                  className="h-full rounded-lg origin-left"
+                  className="h-full rounded-xl origin-left"
                   style={{
                     width: `${Math.max(barRatio * 100, 5)}%`,
                     background: 'rgba(200,255,0,0.2)',
@@ -73,7 +73,7 @@ export function ComparisonCard({ baselineDurationMs, rocketDurationMs, onReset }
           </div>
         )}
 
-        {/* Loss-aversion CTA */}
+        {/* CTA */}
         {stage >= 3 && (
           <div className="mt-12 text-center anim-fade-up">
             <p className="text-text-dim text-[14px]">
@@ -82,7 +82,7 @@ export function ComparisonCard({ baselineDurationMs, rocketDurationMs, onReset }
             </p>
             <button
               onClick={onReset}
-              className="mt-8 h-10 px-6 bg-surface border border-border rounded-xl text-[13px] text-text hover:bg-elevated hover:border-text-muted/30 transition-all"
+              className="mt-8 h-11 px-7 bg-surface border border-border rounded-xl text-[13px] text-text hover:bg-elevated hover:border-text-muted/30 transition-all saas-btn"
             >
               Try another task
             </button>

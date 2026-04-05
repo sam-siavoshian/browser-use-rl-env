@@ -1,13 +1,17 @@
 """OpenAI embedding generation for task templates.
 
-Uses text-embedding-3-small (1536 dimensions).
-Includes LRU cache for repeated embedding requests.
+Uses text-embedding-3-large (3072 dimensions) with rich composite text
+that captures task semantics, step structure, parameters, and domain context.
 """
 
 import os
 from functools import lru_cache
+from typing import Any
 
 from openai import OpenAI
+
+EMBEDDING_MODEL = "text-embedding-3-large"
+EMBEDDING_DIMS = 3072
 
 _openai_client: OpenAI | None = None
 
@@ -25,18 +29,88 @@ def _get_openai() -> OpenAI:
     return _openai_client
 
 
+def build_embedding_text(
+    task_pattern: str,
+    steps: list[dict[str, Any]],
+    parameters: list[dict[str, Any]],
+    domain: str,
+    action_type: str,
+    site_knowledge: dict[str, Any] | None = None,
+) -> str:
+    """Build a structured text representation for embedding.
+
+    Combines task semantics, step structure, parameter schema, and domain
+    context into a single string optimized for embedding quality.
+
+    The task: line comes first as the primary semantic signal.
+    """
+    lines = [f"task: {task_pattern}"]
+
+    # Step sequence — action verbs only, DYNAMIC steps labeled as "dynamic"
+    if steps:
+        step_names = []
+        for s in steps:
+            classification = s.get("classification", "").upper()
+            if classification == "DYNAMIC":
+                step_names.append("dynamic")
+            else:
+                action = s.get("action", "unknown")
+                step_names.append(action)
+        lines.append(f"steps: {' > '.join(step_names)}")
+
+    # Parameter schema
+    if parameters:
+        param_parts = []
+        for p in parameters:
+            name = p.get("name", "unknown")
+            ptype = p.get("type", "string")
+            required = "required" if p.get("required", True) else "optional"
+            param_parts.append(f"{name}({ptype}, {required})")
+        lines.append(f"params: {', '.join(param_parts)}")
+
+    lines.append(f"domain: {domain}")
+    lines.append(f"action: {action_type}")
+
+    # Site knowledge context — semantic element names from selector_map keys
+    if site_knowledge:
+        selector_map = site_knowledge.get("selector_map", {})
+        if selector_map:
+            context_keys = list(selector_map.keys())
+            lines.append(f"context: {', '.join(context_keys)}")
+
+    return "\n".join(lines)
+
+
+def build_query_embedding_text(
+    task_description: str,
+    domain: str | None = None,
+    action_type: str | None = None,
+) -> str:
+    """Build a partial rich text for query embeddings.
+
+    Queries don't have steps/params, so we include only the metadata
+    we can infer (domain, action_type) to improve matching accuracy.
+    """
+    lines = [f"task: {task_description}"]
+    if domain:
+        lines.append(f"domain: {domain}")
+    if action_type:
+        lines.append(f"action: {action_type}")
+    return "\n".join(lines)
+
+
 def generate_embedding(text: str) -> list[float]:
-    """Generate a 1536-dimensional embedding for the given text.
+    """Generate a 3072-dimensional embedding for the given text.
 
     Args:
-        text: The text to embed (typically a task_pattern like "buy {product} on Amazon").
+        text: The text to embed (rich composite text or raw task description).
 
     Returns:
-        List of 1536 floats representing the embedding vector.
+        List of 3072 floats representing the embedding vector.
     """
     client = _get_openai()
     response = client.embeddings.create(
-        model="text-embedding-3-small",
+        model=EMBEDDING_MODEL,
         input=text,
         encoding_format="float",
     )
@@ -50,7 +124,7 @@ def generate_embeddings_batch(texts: list[str]) -> list[list[float]]:
     """
     client = _get_openai()
     response = client.embeddings.create(
-        model="text-embedding-3-small",
+        model=EMBEDDING_MODEL,
         input=texts,
         encoding_format="float",
     )
