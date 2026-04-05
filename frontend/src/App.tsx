@@ -12,6 +12,7 @@ import { TemplateSearchCard } from './components/TemplateSearchCard';
 import { ChatPage } from './pages/ChatPage';
 import { AgentResultMarkdown } from './components/chat/AgentResultMarkdown';
 import { BenchmarksPage } from './components/BenchmarksPage';
+import { TemplateLogs } from './components/TemplateLogs';
 import { DocsLayout } from './pages/docs/DocsLayout';
 import { usePoller } from './hooks/usePoller';
 import { useTimer } from './hooks/useTimer';
@@ -48,6 +49,8 @@ function App() {
   const [rocketId, setRocketId] = useState<string | null>(null);
   const [learnId, setLearnId] = useState<string | null>(null);
   const [templates, setTemplates] = useState<Template[]>([]);
+  const [learnTab, setLearnTab] = useState<'learn' | 'logs'>('learn');
+  const [expandedSkillId, setExpandedSkillId] = useState<string | null>(null);
   const [totalTimeSavedMs, setTotalTimeSavedMs] = useState(0);
   const [raceCount, setRaceCount] = useState(0);
 
@@ -262,75 +265,178 @@ function App() {
               </div>
 
               {/* Learn-only input */}
-              <div className="w-full max-w-[520px] mb-12 anim-fade-up" style={{ animationDelay: '60ms' }}>
+              <div className="w-full max-w-[520px] mb-10 anim-fade-up" style={{ animationDelay: '60ms' }}>
                 <TaskInput onRun={(task) => learn(task)} isRunning={false} />
               </div>
 
-              {/* Learned templates */}
-              {templates.length > 0 && (
-                <div className="w-full max-w-2xl anim-fade-up" style={{ animationDelay: '120ms' }}>
-                  <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-text-muted mb-4 text-center">
-                    {templates.length} skill{templates.length !== 1 ? 's' : ''} learned
-                  </p>
-                  <div className="flex flex-col gap-2">
-                    {templates.map((t) => (
-                      <div
-                        key={t.id}
-                        className="saas-card p-4 flex items-start gap-4"
-                      >
-                        <div className="w-9 h-9 rounded-xl bg-surface flex items-center justify-center shrink-0 border border-border">
-                          <img
-                            src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(t.domain)}&sz=32`}
-                            alt=""
-                            width={18}
-                            height={18}
-                            className="rounded-sm"
-                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                          />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="mb-1">
-                            <span className="text-[13px] font-medium text-text truncate block">{t.domain}</span>
-                          </div>
-                          <p className="text-[12px] text-text-dim truncate">{t.pattern}</p>
-                          {t.steps && t.steps.length > 0 && (
-                            <div className="flex items-center gap-1.5 mt-2">
-                              {t.steps.slice(0, 8).map((step) => (
-                                <div
-                                  key={step.id}
-                                  className={`w-1.5 h-1.5 rounded-full ${
-                                    step.type === 'fixed' ? 'bg-lime/60' :
-                                    step.type === 'parameterized' ? 'bg-amber-400/60' :
-                                    'bg-sky-400/60'
-                                  }`}
-                                  title={`${step.type}: ${step.description}`}
-                                />
-                              ))}
-                              {t.steps.length > 8 && (
-                                <span className="text-[9px] text-text-muted">+{t.steps.length - 8}</span>
+              {/* Tab switcher */}
+              <div className="flex items-center gap-1 mb-6 p-1 rounded-xl bg-surface border border-border anim-fade-up" style={{ animationDelay: '90ms' }}>
+                {(['learn', 'logs'] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setLearnTab(tab)}
+                    className={`px-4 py-1.5 rounded-lg text-[12px] font-medium transition-all ${
+                      learnTab === tab
+                        ? 'bg-white/[0.06] text-text shadow-sm'
+                        : 'text-text-muted hover:text-text'
+                    }`}
+                  >
+                    {tab === 'learn' ? `Skills (${templates.length})` : 'Learning Logs'}
+                  </button>
+                ))}
+              </div>
+
+              {/* Tab content */}
+              <div className="w-full max-w-2xl anim-fade-up" style={{ animationDelay: '120ms' }}>
+                {learnTab === 'learn' && (
+                  <>
+                    {templates.length > 0 && (
+                      <div className="flex flex-col gap-2">
+                        {templates.map((t) => {
+                          const isOpen = expandedSkillId === t.id;
+                          const fixedCount = t.steps?.filter(s => s.type === 'fixed').length ?? 0;
+                          const paramCount = t.steps?.filter(s => s.type === 'parameterized').length ?? 0;
+                          const dynamicCount = t.steps?.filter(s => s.type === 'dynamic').length ?? 0;
+                          return (
+                            <div key={t.id}>
+                              <button
+                                type="button"
+                                onClick={() => setExpandedSkillId(isOpen ? null : t.id)}
+                                className="saas-card p-4 flex items-start gap-4 w-full text-left cursor-pointer transition-all hover:border-white/[0.12]"
+                              >
+                                <div className="w-9 h-9 rounded-xl bg-surface flex items-center justify-center shrink-0 border border-border">
+                                  <img
+                                    src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(t.domain)}&sz=32`}
+                                    alt=""
+                                    width={18}
+                                    height={18}
+                                    className="rounded-sm"
+                                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                  />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="mb-1">
+                                    <span className="text-[13px] font-medium text-text truncate block">{t.domain}</span>
+                                  </div>
+                                  <p className="text-[12px] text-text-dim truncate">{t.pattern}</p>
+                                  {t.steps && t.steps.length > 0 && (
+                                    <div className="flex items-center gap-1.5 mt-2">
+                                      {t.steps.slice(0, 8).map((step) => (
+                                        <div
+                                          key={step.id}
+                                          className={`w-1.5 h-1.5 rounded-full ${
+                                            step.type === 'fixed' ? 'bg-lime/60' :
+                                            step.type === 'parameterized' ? 'bg-amber-400/60' :
+                                            'bg-sky-400/60'
+                                          }`}
+                                          title={`${step.type}: ${step.description}`}
+                                        />
+                                      ))}
+                                      {t.steps.length > 8 && (
+                                        <span className="text-[9px] text-text-muted">+{t.steps.length - 8}</span>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="flex flex-col items-end gap-1 shrink-0">
+                                  <span className="text-[10px] text-text-muted font-mono">
+                                    {t.uses} run{t.uses !== 1 ? 's' : ''}
+                                  </span>
+                                  <svg
+                                    width="12" height="12" viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                                    className={`text-text-muted transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+                                  >
+                                    <path d="m6 9 6 6 6-6" />
+                                  </svg>
+                                </div>
+                              </button>
+
+                              {/* Expanded detail panel */}
+                              {isOpen && t.steps && (
+                                <div className="mx-2 mb-1 rounded-xl overflow-hidden" style={{
+                                  background: 'rgba(0,0,0,0.25)',
+                                  boxShadow: 'inset 0 4px 12px rgba(0,0,0,0.4), inset 0 1px 3px rgba(0,0,0,0.3)',
+                                  animation: 'fade-up 0.25s ease both',
+                                }}>
+                                  {/* Pattern */}
+                                  <div className="px-4 py-3 border-b border-white/[0.04]">
+                                    <p className="text-[10px] font-mono uppercase tracking-wider text-text-muted mb-1">Generalized Pattern</p>
+                                    <p className="text-[12px] text-text/80 leading-relaxed">{t.pattern}</p>
+                                  </div>
+
+                                  {/* Step counts */}
+                                  <div className="px-4 py-2.5 border-b border-white/[0.04] flex items-center gap-4">
+                                    <span className="text-[10px] font-mono uppercase tracking-wider text-text-muted">Steps</span>
+                                    <div className="flex items-center gap-3 text-[11px]">
+                                      {fixedCount > 0 && (
+                                        <span className="flex items-center gap-1.5">
+                                          <span className="w-2 h-2 rounded-full bg-lime/60" />
+                                          <span className="text-text-dim">{fixedCount} Playwright</span>
+                                        </span>
+                                      )}
+                                      {paramCount > 0 && (
+                                        <span className="flex items-center gap-1.5">
+                                          <span className="w-2 h-2 rounded-full bg-amber-400/60" />
+                                          <span className="text-text-dim">{paramCount} parameterized</span>
+                                        </span>
+                                      )}
+                                      {dynamicCount > 0 && (
+                                        <span className="flex items-center gap-1.5">
+                                          <span className="w-2 h-2 rounded-full bg-sky-400/60" />
+                                          <span className="text-text-dim">{dynamicCount} agent</span>
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Individual steps */}
+                                  {t.steps.map((step, i) => (
+                                    <div
+                                      key={step.id}
+                                      className="flex items-start gap-3 px-4 py-2 text-[11px]"
+                                      style={{ borderTop: i > 0 ? '1px solid rgba(255,255,255,0.03)' : undefined }}
+                                    >
+                                      <div className={`w-[4px] h-4 rounded-full shrink-0 mt-0.5 ${
+                                        step.type === 'fixed' ? 'bg-lime/60' :
+                                        step.type === 'parameterized' ? 'bg-amber-400/60' :
+                                        'bg-sky-400/60'
+                                      }`} />
+                                      <div className="flex-1 min-w-0">
+                                        <span className="text-text-dim">{step.description}</span>
+                                      </div>
+                                      <span className="text-[9px] font-mono text-text-muted shrink-0 mt-0.5">
+                                        {step.type === 'fixed' ? 'pw' : step.type === 'parameterized' ? 'param' : 'agent'}
+                                      </span>
+                                      {step.handoff && (
+                                        <span className="text-[8px] font-mono text-sky/60 shrink-0 mt-0.5">handoff</span>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
                               )}
                             </div>
-                          )}
-                        </div>
-                        <div className="text-[10px] text-text-muted font-mono shrink-0">
-                          {t.uses} run{t.uses !== 1 ? 's' : ''}
+                          );
+                        })}
+                      </div>
+                    )}
+                    {templates.length === 0 && (
+                      <div className="text-center">
+                        <div className="saas-inset-sm px-8 py-6 rounded-2xl">
+                          <p className="text-[13px] text-text-dim mb-1">No skills yet</p>
+                          <p className="text-[12px] text-text-muted">
+                            Teach the agent something above. It learns the general pattern, not just the specific task.
+                          </p>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {templates.length === 0 && (
-                <div className="text-center anim-fade-up" style={{ animationDelay: '120ms' }}>
-                  <div className="saas-inset-sm px-8 py-6 rounded-2xl">
-                    <p className="text-[13px] text-text-dim mb-1">No skills yet</p>
-                    <p className="text-[12px] text-text-muted">
-                      Teach the agent something above. It learns the general pattern, not just the specific task.
-                    </p>
-                  </div>
-                </div>
-              )}
+                    )}
+                  </>
+                )}
+                {learnTab === 'logs' && (
+                  <TemplateLogs templates={templates} />
+                )}
+              </div>
             </div>
           </div>
         )}

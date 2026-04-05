@@ -20,14 +20,18 @@ function AmazonLogo() {
 
 export function ExampleBrandIcon({ id }: { id: string }) {
   switch (id) {
+    case 'product-search':
     case 'amazon-search':
       return <AmazonLogo />;
+    case 'wiki-search':
     case 'wiki-compare':
       return <SiWikipedia className={`${ICON} text-white/90`} aria-hidden />;
     case 'hn-story':
       return <FaHackerNews className={`${ICON} text-[#FF6600]`} aria-hidden />;
+    case 'github-trending':
     case 'github-repo':
       return <SiGithub className={`${ICON} text-white/90`} aria-hidden />;
+    case 'recipe-lookup':
     case 'recipe-details':
       return <FaBowlFood className={`${ICON} text-amber-400/90`} aria-hidden />;
     default:
