@@ -83,7 +83,7 @@ else
         printf "${YELLOW}Forged repo not found automatically.${NC}\n"
         printf "Enter the full path to your Forged project directory:\n"
         printf "${CYAN}> ${NC}"
-        read -r FORGED_DIR
+        read -r FORGED_DIR </dev/tty
 
         # Expand ~ if present
         FORGED_DIR="${FORGED_DIR/#\~/$HOME}"
@@ -108,7 +108,7 @@ MISSING_DEPS=()
 if [ ${#MISSING_DEPS[@]} -gt 0 ]; then
     warn "Missing packages: ${MISSING_DEPS[*]}"
     printf "  Install them now? [Y/n] "
-    read -r INSTALL_DEPS
+    read -r INSTALL_DEPS </dev/tty
     INSTALL_DEPS=${INSTALL_DEPS:-Y}
     if [[ "$INSTALL_DEPS" =~ ^[Yy] ]]; then
         "$PYTHON" -m pip install "${MISSING_DEPS[@]}" --quiet
@@ -127,7 +127,7 @@ printf "\n"
 info "Where is the Forged backend running?"
 printf "  Press Enter for default (${CYAN}$DEFAULT_URL${NC}), or enter a custom URL:\n"
 printf "${CYAN}> ${NC}"
-read -r BACKEND_URL
+read -r BACKEND_URL </dev/tty
 BACKEND_URL=${BACKEND_URL:-$DEFAULT_URL}
 
 # Quick health check (non-blocking — backend might not be running yet)
@@ -145,7 +145,7 @@ info "Where should the MCP server be registered?"
 printf "  ${BOLD}1)${NC} User scope — available in all your Claude Code sessions (recommended)\n"
 printf "  ${BOLD}2)${NC} Project scope — only available in this project\n"
 printf "  Choice [1/2]: "
-read -r SCOPE_CHOICE
+read -r SCOPE_CHOICE </dev/tty
 SCOPE_CHOICE=${SCOPE_CHOICE:-1}
 
 case "$SCOPE_CHOICE" in
@@ -164,9 +164,10 @@ info "Registering Forged MCP server with Claude Code..."
 claude mcp remove forged -s "$SCOPE" 2>/dev/null || true
 
 # Register using claude mcp add
+# Note: -e expects KEY=value as a single arg
 claude mcp add \
     -s "$SCOPE" \
-    -e "FORGED_API_URL=$BACKEND_URL" \
+    -e "FORGED_API_URL=${BACKEND_URL}" \
     forged \
     -- \
     "$PYTHON" "$MCP_SERVER_PATH"
