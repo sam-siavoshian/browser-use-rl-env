@@ -218,3 +218,7 @@ setup_mcp.sh            One-command setup wizard
 ## License
 
 MIT
+
+---
+
+Made with ⚡ and ❤️ at Dimond Hack UCSD 2026 by Sam Siavoshian
