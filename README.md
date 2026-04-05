@@ -31,21 +31,21 @@ The wizard finds your Python, installs dependencies, and registers Forged with C
 When your AI calls `run_browser_task("Search for keyboards on Amazon")`, three things happen:
 
 1. **Domain extraction** — Regex pulls `amazon.com` from the task. Falls back to Claude Haiku if no URL is present ("Amazon" → `amazon.com`).
-
 2. **Action classification** — Haiku classifies the task into one of 7 categories: `search`, `purchase`, `form_fill`, `navigate`, `extract`, `login`, `interact`.
-
 3. **Vector similarity search** — The task is embedded via OpenAI `text-embedding-3-large` (3072 dimensions) and compared against stored templates using pgvector's `<=>` cosine distance operator. Filtered by domain and action type before the vector search even runs.
 
 If similarity is high enough (≥0.50), a template is matched. If not, the full agent runs and Forged learns a template from the trace.
 
 ### Confidence bands
 
-| Band | Similarity | What happens |
-|------|-----------|--------------|
-| Very High | ≥ 90% | Execute all rocket steps immediately |
-| High | 75-89% | Execute all rocket steps |
-| Medium | 50-74% | LLM verifies the match before executing |
-| No match | < 50% | Full agent, auto-learn template |
+
+| Band      | Similarity | What happens                            |
+| --------- | ---------- | --------------------------------------- |
+| Very High | ≥ 90%      | Execute all rocket steps immediately    |
+| High      | 75-89%     | Execute all rocket steps                |
+| Medium    | 50-74%     | LLM verifies the match before executing |
+| No match  | < 50%      | Full agent, auto-learn template         |
+
 
 Template confidence updates after every execution: success adds `+0.1 * (1 - confidence)`, failure subtracts `0.2 * confidence`. Templates that keep working gain confidence. Templates that break lose it fast.
 
@@ -221,4 +221,4 @@ MIT
 
 ---
 
-Made with ⚡ and ❤️ at Diamond Hack UCSD 2026 by Sam Siavoshian
+Made with speed of ⚡ and ❤️ at Diamond Hack UCSD 2026 by Sam Siavoshian

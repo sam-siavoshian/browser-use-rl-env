@@ -33,6 +33,17 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 
+class _SuppressStatusPollAccessLogFilter(logging.Filter):
+    """Drop uvicorn access lines for GET /api/status/... (polled ~2/s per session)."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        try:
+            msg = record.getMessage()
+        except Exception:
+            return True
+        return "/api/status/" not in msg
+
+
 # ---------------------------------------------------------------------------
 # Session state — what the frontend polls
 # ---------------------------------------------------------------------------
@@ -968,6 +979,7 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def _startup():
+    logging.getLogger("uvicorn.access").addFilter(_SuppressStatusPollAccessLogFilter())
     asyncio.create_task(_session_gc_loop())
 
 
